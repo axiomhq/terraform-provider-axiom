@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -12,6 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/axiomhq/axiom-go/axiom"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -90,6 +91,11 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if r.client == nil {
+		resp.Diagnostics.AddError("Client Error", "Client is not set")
 		return
 	}
 

@@ -2,15 +2,14 @@ package axiom
 
 import (
 	"context"
-	"log"
-
-	ax "github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -28,8 +27,9 @@ type axiomProvider struct{}
 
 // AxiomProviderModel describes the provider data model.
 type AxiomProviderModel struct {
-	Token types.String `tfsdk:"token"`
-	OrgID types.String `tfsdk:"org_id"`
+	Token   types.String `tfsdk:"token"`
+	OrgID   types.String `tfsdk:"org_id"`
+	BaseUrl types.String `tfsdk:"base_url"`
 }
 
 // Metadata returns the provider type name.
@@ -48,6 +48,10 @@ func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			"org_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The Axiom organization ID.",
+			},
+			"base_url": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The base url of the axiom api.",
 			},
 		},
 	}
@@ -72,12 +76,17 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	client, err := ax.NewClient(
+	ops := []ax.Option{
 		ax.SetPersonalTokenConfig(data.Token.ValueString(), data.OrgID.ValueString()),
-	)
+	}
+
+	if !data.BaseUrl.IsNull() {
+		ops = append(ops, ax.SetURL(data.BaseUrl.ValueString()))
+	}
+
+	client, err := ax.NewClient(ops...)
 	if err != nil {
-		log.Println(err)
-		return
+		resp.Diagnostics.AddError("unable to create axiom client", err.Error())
 	}
 
 	resp.DataSourceData = client
@@ -88,6 +97,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewDatasetDataSource,
+		NewMonitorDataSource,
 	}
 }
 
@@ -95,5 +105,6 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDatasetResource,
+		NewMonitorResource,
 	}
 }

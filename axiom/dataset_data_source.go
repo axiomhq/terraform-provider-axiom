@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/axiomhq/axiom-go/axiom"
 )
 
 // Ensure the implementation satisfies the desired interfaces.
@@ -32,7 +33,7 @@ func (d *DatasetDataSource) Configure(ctx context.Context, req datasource.Config
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
+			"Unexpected datasource Configure Type",
 			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
