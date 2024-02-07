@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"terraform-provider-axiom-provider/axiom"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"terraform-provider-axiom-provider/axiom"
 )
 
 func main() {
