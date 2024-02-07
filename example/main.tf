@@ -1,0 +1,52 @@
+terraform {
+  required_providers {
+    axiom = {
+      source = "axiom"
+      version = "0.0.0"
+    }
+  }
+}
+
+provider "axiom" {
+  token = ""
+  org_id = ""
+  base_url = "https://api.axiom.co"
+}
+
+// create a dataset resource with name and description
+resource "axiom_dataset" "testing_dataset"{
+  name = "created_via_terraform"
+  description = "testing datasets using tf"
+}
+
+resource "axiom_notifier" "slack_test" {
+    name = "slack_test"
+    type = "slack"
+    properties = {
+        slack = {
+          slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
+        }
+    }
+}
+
+resource "axiom_monitor" "test_monitor" {
+  depends_on = [axiom_dataset.testing_dataset,axiom_notifier.slack_test]
+  name = "test monitor"
+  description = "test_monitor updated"
+  apl_query = "['created_via_terraform']| summarize count() by bin_auto(_time)"
+  disabled = false
+  interval_minutes = 5
+  operator = "Above"
+  range_minutes = 5
+  threshold = 1
+  notifier_ids = [
+    axiom_notifier.slack_test.id
+  ]
+  alert_on_no_data = false
+}
+
+resource "axiom_user" "topper" {
+  name = "axiom user"
+  email = "axiomuser@example.com"
+  role = "owner"
+}

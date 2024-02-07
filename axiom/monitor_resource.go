@@ -37,8 +37,6 @@ type MonitorResourceModel struct {
 	AplQuery        types.String   `tfsdk:"apl_query"`
 	Disabled        types.Bool     `tfsdk:"disabled"`
 	IntervalMinutes types.Int64    `tfsdk:"interval_minutes"`
-	MatchEveryN     types.Int64    `tfsdk:"match_every_n"`
-	MatchValue      types.String   `tfsdk:"match_value"`
 	NotifierIds     []types.String `tfsdk:"notifier_ids"`
 	Operator        types.String   `tfsdk:"operator"`
 	RangeMinutes    types.Int64    `tfsdk:"range_minutes"`
@@ -85,14 +83,6 @@ func (r *MonitorResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"interval_minutes": schema.Int64Attribute{
 				MarkdownDescription: "How often the monitor should run",
 				Required:            true,
-			},
-			"match_every_n": schema.Int64Attribute{
-				MarkdownDescription: "Unknown",
-				Optional:            true,
-			},
-			"match_value": schema.StringAttribute{
-				MarkdownDescription: "Unknown",
-				Optional:            true,
 			},
 			"notifier_ids": schema.ListAttribute{
 				Optional:    true,
@@ -145,16 +135,8 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	fmt.Println("Creating Monitor")
-	fmt.Printf("name: %s\n", data.Name.ValueString())
-	fmt.Printf("description: %s\n", data.Description.ValueString())
-
 	if r.client == nil {
 		resp.Diagnostics.AddError("Client Error", "Client is not set")
-		return
-	}
-	if r.client.Monitors == nil {
-		resp.Diagnostics.AddError("Client Error", "Client Monitors is not set")
 		return
 	}
 
@@ -170,8 +152,6 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		Description:     data.Description.ValueString(),
 		Disabled:        data.Disabled.ValueBool(),
 		IntervalMinutes: data.IntervalMinutes.ValueInt64(),
-		MatchEveryN:     data.MatchEveryN.ValueInt64(),
-		MatchValue:      data.MatchValue.ValueString(),
 		NotifierIds:     notifierIds,
 		Operator:        data.Operator.ValueString(),
 		RangeMinutes:    data.RangeMinutes.ValueInt64(),
@@ -185,6 +165,19 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 	data.ID = types.StringValue(ds.ID)
 	data.Name = types.StringValue(ds.Name)
 	data.Description = types.StringValue(ds.Description)
+	data.AlertOnNoData = types.BoolValue(ds.AlertOnNoData)
+	data.AplQuery = types.StringValue(ds.AplQuery)
+	data.Disabled = types.BoolValue(ds.Disabled)
+	data.IntervalMinutes = types.Int64Value(ds.IntervalMinutes)
+
+	data.NotifierIds = []types.String{}
+	for _, item := range ds.NotifierIds {
+		data.NotifierIds = append(data.NotifierIds, types.StringValue(item))
+	}
+
+	data.Operator = types.StringValue(ds.Operator)
+	data.RangeMinutes = types.Int64Value(ds.RangeMinutes)
+	data.Threshold = types.Float64Value(ds.Threshold)
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log
@@ -210,9 +203,22 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	data.Name = types.StringValue(ds.Name)
 	data.ID = types.StringValue(ds.ID)
+	data.Name = types.StringValue(ds.Name)
 	data.Description = types.StringValue(ds.Description)
+	data.AlertOnNoData = types.BoolValue(ds.AlertOnNoData)
+	data.AplQuery = types.StringValue(ds.AplQuery)
+	data.Disabled = types.BoolValue(ds.Disabled)
+	data.IntervalMinutes = types.Int64Value(ds.IntervalMinutes)
+
+	data.NotifierIds = []types.String{}
+	for _, item := range ds.NotifierIds {
+		data.NotifierIds = append(data.NotifierIds, types.StringValue(item))
+	}
+
+	data.Operator = types.StringValue(ds.Operator)
+	data.RangeMinutes = types.Int64Value(ds.RangeMinutes)
+	data.Threshold = types.Float64Value(ds.Threshold)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -228,19 +234,22 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	notifierIds := make([]string, len(data.NotifierIds))
+	for i, v := range data.NotifierIds {
+		notifierIds[i] = v.ValueString()
+	}
+
 	ds, err := r.client.Monitors.Update(ctx, data.ID.ValueString(), axiom.Monitor{
-		AlertOnNoData:   false,
-		AplQuery:        "",
+		Name:            data.Name.ValueString(),
+		AlertOnNoData:   data.AlertOnNoData.ValueBool(),
+		AplQuery:        data.AplQuery.ValueString(),
 		Description:     data.Description.ValueString(),
-		Disabled:        false,
-		IntervalMinutes: 0,
-		MatchEveryN:     0,
-		MatchValue:      "",
-		Name:            "",
-		NotifierIds:     nil,
-		Operator:        "",
-		RangeMinutes:    0,
-		Threshold:       0,
+		Disabled:        data.Disabled.ValueBool(),
+		IntervalMinutes: data.IntervalMinutes.ValueInt64(),
+		NotifierIds:     notifierIds,
+		Operator:        data.Operator.ValueString(),
+		RangeMinutes:    data.RangeMinutes.ValueInt64(),
+		Threshold:       data.Threshold.ValueFloat64(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update Monitor", err.Error())
@@ -250,6 +259,19 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 	data.ID = types.StringValue(ds.ID)
 	data.Name = types.StringValue(ds.Name)
 	data.Description = types.StringValue(ds.Description)
+	data.AlertOnNoData = types.BoolValue(ds.AlertOnNoData)
+	data.AplQuery = types.StringValue(ds.AplQuery)
+	data.Disabled = types.BoolValue(ds.Disabled)
+	data.IntervalMinutes = types.Int64Value(ds.IntervalMinutes)
+
+	data.NotifierIds = []types.String{}
+	for _, item := range ds.NotifierIds {
+		data.NotifierIds = append(data.NotifierIds, types.StringValue(item))
+	}
+
+	data.Operator = types.StringValue(ds.Operator)
+	data.RangeMinutes = types.Int64Value(ds.RangeMinutes)
+	data.Threshold = types.Float64Value(ds.Threshold)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

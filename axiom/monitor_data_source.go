@@ -3,7 +3,6 @@ package axiom
 import (
 	"context"
 	"fmt"
-
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -49,20 +48,54 @@ func (d *MonitorDataSource) Metadata(ctx context.Context, req datasource.Metadat
 
 func (d *MonitorDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: "Example Monitor",
 
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Monitor identifier",
+			},
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Monitor name",
-				Optional:            true,
+				Required:            true,
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "Monitor description",
 				Optional:            true,
 			},
-			"id": schema.StringAttribute{
+			"alert_on_no_data": schema.BoolAttribute{
+				MarkdownDescription: "If the monitor should trigger an alert if there is no data",
 				Required:            true,
-				MarkdownDescription: "Monitor identifier",
+			},
+			"apl_query": schema.StringAttribute{
+				MarkdownDescription: "The query used inside the monitor",
+				Required:            true,
+			},
+			"disabled": schema.BoolAttribute{
+				MarkdownDescription: "Is the monitor disabled",
+				Required:            true,
+			},
+			"interval_minutes": schema.Int64Attribute{
+				MarkdownDescription: "How often the monitor should run",
+				Required:            true,
+			},
+			"notifier_ids": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "A list of notifier id's to be used when this monitor triggers",
+			},
+			"operator": schema.StringAttribute{
+				MarkdownDescription: "Operator used in monitor trigger evaluation",
+				Required:            true,
+			},
+			"range_minutes": schema.Int64Attribute{
+				MarkdownDescription: "Query time range from now",
+				Required:            true,
+			},
+			"threshold": schema.Float64Attribute{
+				MarkdownDescription: "The threshold where the monitor should trigger",
+				Required:            true,
 			},
 		},
 	}
@@ -87,6 +120,7 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		tflog.Error(ctx, err.Error())
 		return
 	}
+
 	data.ID = types.StringValue(ds.ID)
 	data.Name = types.StringValue(ds.Name)
 	data.Description = types.StringValue(ds.Description)
@@ -94,9 +128,8 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	data.AplQuery = types.StringValue(ds.AplQuery)
 	data.Disabled = types.BoolValue(ds.Disabled)
 	data.IntervalMinutes = types.Int64Value(ds.IntervalMinutes)
-	data.MatchEveryN = types.Int64Value(ds.MatchEveryN)
-	data.MatchValue = types.StringValue(ds.MatchValue)
 
+	data.NotifierIds = make([]types.String, len(ds.NotifierIds))
 	for _, item := range ds.NotifierIds {
 		data.NotifierIds = append(data.NotifierIds, types.StringValue(item))
 	}

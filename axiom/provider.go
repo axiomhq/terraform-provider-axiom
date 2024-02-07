@@ -98,6 +98,8 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 	return []func() datasource.DataSource{
 		NewDatasetDataSource,
 		NewMonitorDataSource,
+		NewNotifierDataSource,
+		NewUserDataSource,
 	}
 }
 
@@ -106,5 +108,7 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 	return []func() resource.Resource{
 		NewDatasetResource,
 		NewMonitorResource,
+		NewNotifierResource,
+		NewUserResource,
 	}
 }
