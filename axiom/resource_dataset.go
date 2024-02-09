@@ -10,14 +10,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &DatasetResource{}
-var _ resource.ResourceWithImportState = &DatasetResource{}
+var (
+	_ resource.Resource                = &DatasetResource{}
+	_ resource.ResourceWithImportState = &DatasetResource{}
+)
 
 func NewDatasetResource() resource.Resource {
 	return &DatasetResource{}
@@ -35,15 +36,13 @@ type DatasetResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 }
 
-func (r *DatasetResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_dataset"
 }
 
-func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Example dataset",
-
+		Version: 1,
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Dataset name",
@@ -65,13 +64,11 @@ func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest
 }
 
 func (r *DatasetResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
 	}
 
 	client, ok := req.ProviderData.(*axiom.Client)
-
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
@@ -85,11 +82,9 @@ func (r *DatasetResource) Configure(ctx context.Context, req resource.ConfigureR
 }
 
 func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *DatasetResourceModel
+	var plan DatasetResourceModel
 
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -100,94 +95,78 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	ds, err := r.client.Datasets.Create(ctx, axiom.DatasetCreateRequest{
-		Name:        data.Name.ValueString(),
-		Description: data.Description.ValueString(),
+		Name:        plan.Name.ValueString(),
+		Description: plan.Description.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
 	}
 
-	data.ID = types.StringValue(ds.ID)
-	data.Name = types.StringValue(ds.Name)
-	data.Description = types.StringValue(ds.Description)
-
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created a resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	plan = *flattenDataset(ds)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data *DatasetResourceModel
+	var plan DatasetResourceModel
 
-	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
+	resp.Diagnostics.Append(req.State.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ds, err := r.client.Datasets.Get(ctx, data.ID.ValueString())
+	ds, err := r.client.Datasets.Get(ctx, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read dataset", err.Error())
 		return
 	}
 
-	data.Name = types.StringValue(ds.Name)
-	data.ID = types.StringValue(ds.ID)
-	data.Description = types.StringValue(ds.Description)
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	plan = *flattenDataset(ds)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data *DatasetResourceModel
+	var plan DatasetResourceModel
 
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ds, err := r.client.Datasets.Update(ctx, data.ID.ValueString(), axiom.DatasetUpdateRequest{
-		Description: data.Description.ValueString(),
+	ds, err := r.client.Datasets.Update(ctx, plan.ID.ValueString(), axiom.DatasetUpdateRequest{
+		Description: plan.Description.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update dataset", err.Error())
 		return
 	}
 
-	data.ID = types.StringValue(ds.ID)
-	data.Name = types.StringValue(ds.Name)
-	data.Description = types.StringValue(ds.Description)
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	plan = *flattenDataset(ds)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *DatasetResourceModel
+	var plan DatasetResourceModel
 
-	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
+	resp.Diagnostics.Append(req.State.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := r.client.Datasets.Delete(ctx, data.ID.ValueString()); err != nil {
+	if err := r.client.Datasets.Delete(ctx, plan.ID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to delete dataset", err.Error())
 		return
 	}
-
-	tflog.Info(ctx, "deleted dataset resource", map[string]interface{}{"id": data.ID.ValueString()})
 }
 
 func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func flattenDataset(dataset *axiom.Dataset) *DatasetResourceModel {
+	return &DatasetResourceModel{
+		Name:        types.StringValue(dataset.Name),
+		Description: types.StringValue(dataset.Description),
+		ID:          types.StringValue(dataset.ID),
+	}
 }

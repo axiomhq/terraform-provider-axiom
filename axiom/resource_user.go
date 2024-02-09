@@ -10,14 +10,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &UserResource{}
-var _ resource.ResourceWithImportState = &UserResource{}
+var (
+	_ resource.Resource                = &UserResource{}
+	_ resource.ResourceWithImportState = &UserResource{}
+)
 
 func NewUserResource() resource.Resource {
 	return &UserResource{}
@@ -36,15 +37,13 @@ type UsersResourceModel struct {
 	Role  types.String `tfsdk:"role"`
 }
 
-func (r *UserResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *UserResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_user"
 }
 
-func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *UserResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Example user",
-
+		Version: 1,
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Users name",
@@ -72,7 +71,7 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 	}
 }
 
-func (r *UserResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *UserResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -93,10 +92,10 @@ func (r *UserResource) Configure(ctx context.Context, req resource.ConfigureRequ
 }
 
 func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *UsersResourceModel
+	var plan UsersResourceModel
 
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	// Read Terraform plan plan into the model
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -107,99 +106,88 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	ds, err := r.client.Users.Create(ctx, axiom.CreateUserRequest{
-		Name:  data.Name.ValueString(),
-		Role:  data.Role.ValueString(),
-		Email: data.Email.ValueString(),
+	user, err := r.client.Users.Create(ctx, axiom.CreateUserRequest{
+		Name:  plan.Name.ValueString(),
+		Role:  plan.Role.ValueString(),
+		Email: plan.Email.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create user, got error: %s", err))
 		return
 	}
 
-	data.ID = types.StringValue(ds.ID)
-	data.Name = types.StringValue(ds.Name)
-	data.Email = types.StringValue(ds.Email)
-	data.Role = types.StringValue(ds.Role.ID)
+	plan = flattenUser(user)
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created a resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data *UsersResourceModel
+	var plan UsersResourceModel
 
 	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ds, err := r.client.Users.Get(ctx, data.ID.ValueString())
+	user, err := r.client.Users.Get(ctx, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read user", err.Error())
 		return
 	}
 
-	data.ID = types.StringValue(ds.ID)
-	data.Name = types.StringValue(ds.Name)
-	data.Email = types.StringValue(ds.Email)
-	data.Role = types.StringValue(ds.Role.ID)
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	plan = flattenUser(user)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data *UsersResourceModel
+	var plan UsersResourceModel
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ds, err := r.client.Users.Update(ctx, data.ID.ValueString(), axiom.UpdateUserRequest{
-		Name: data.Name.ValueString(),
+	user, err := r.client.Users.Update(ctx, plan.ID.ValueString(), axiom.UpdateUserRequest{
+		Name: plan.Name.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update user", err.Error())
 		return
 	}
 
-	data.ID = types.StringValue(ds.ID)
-	data.Name = types.StringValue(ds.Name)
-	data.Email = types.StringValue(ds.Email)
-	data.Role = types.StringValue(ds.Role.ID)
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	plan = flattenUser(user)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *UsersResourceModel
+	var plan UsersResourceModel
 
 	// Read Terraform prior state data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := r.client.Users.Delete(ctx, data.ID.ValueString()); err != nil {
+	if err := r.client.Users.Delete(ctx, plan.ID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to delete user", err.Error())
 		return
 	}
-
-	tflog.Info(ctx, "deleted user resource", map[string]interface{}{"id": data.ID.ValueString()})
 }
 
 func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func flattenUser(user *axiom.User) UsersResourceModel {
+	return UsersResourceModel{
+		ID:    types.StringValue(user.ID),
+		Name:  types.StringValue(user.Name),
+		Email: types.StringValue(user.Email),
+		Role:  types.StringValue(user.Role.ID),
+	}
 }
