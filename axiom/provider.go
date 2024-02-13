@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"context"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,20 +19,20 @@ var (
 	_ provider.Provider = &axiomProvider{}
 )
 
-// New is a helper function to simplify provider server and testing implementation.
-func New() provider.Provider {
+// AxiomProviderModel describes the provider data model.
+type AxiomProviderModel struct {
+	ApiToken types.String `tfsdk:"api_token"`
+	OrgID    types.String `tfsdk:"org_id"`
+	BaseUrl  types.String `tfsdk:"base_url"`
+}
+
+// NewAxiomProvider is a helper function to simplify provider server and testing implementation.
+func NewAxiomProvider() provider.Provider {
 	return &axiomProvider{}
 }
 
 // axiomProvider is the provider implementation.
 type axiomProvider struct{}
-
-// AxiomProviderModel describes the provider data model.
-type AxiomProviderModel struct {
-	Token   types.String `tfsdk:"token"`
-	OrgID   types.String `tfsdk:"org_id"`
-	BaseUrl types.String `tfsdk:"base_url"`
-}
 
 // Metadata returns the provider type name.
 func (p *axiomProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -42,7 +43,7 @@ func (p *axiomProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"token": schema.StringAttribute{
+			"api_token": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The Axiom API token.",
 			},
@@ -60,29 +61,40 @@ func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 
 // Configure prepares a Axiom API client for data sources and resources.
 func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data AxiomProviderModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-
+	var config AxiomProviderModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	if data.Token.IsNull() {
+	if config.ApiToken.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("token"),
-			"Token is required",
+			"ApiToken is required",
 			"Please set the token in the provider configuration block.",
 		)
 		return
 	}
 
-	ops := []ax.Option{
-		ax.SetPersonalTokenConfig(data.Token.ValueString(), data.OrgID.ValueString()),
+	apiToken := os.Getenv("AXIOM_API_TOKEN")
+	orgID := os.Getenv("AXIOM_ORG_ID")
+	baseUrl := os.Getenv("AXIOM_BASE_URL")
+
+	if !config.ApiToken.IsNull() {
+		apiToken = config.ApiToken.ValueString()
+	}
+	if !config.OrgID.IsNull() {
+		orgID = config.OrgID.ValueString()
+	}
+	if !config.BaseUrl.IsNull() {
+		baseUrl = config.BaseUrl.ValueString()
 	}
 
-	if !data.BaseUrl.IsNull() {
-		ops = append(ops, ax.SetURL(data.BaseUrl.ValueString()))
+	ops := []ax.Option{
+		ax.SetPersonalTokenConfig(apiToken, orgID),
+	}
+
+	if baseUrl != "" {
+		ops = append(ops, ax.SetURL(baseUrl))
 	}
 
 	client, err := ax.NewClient(ops...)
