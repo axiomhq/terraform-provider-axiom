@@ -21,11 +21,17 @@ resource "axiom_dataset" "testing_dataset"{
 
 resource "axiom_notifier" "slack_test" {
     name = "slack_test"
-    type = "slack"
     properties = {
         slack = {
           slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
         }
+#        discord = {
+#          discord_channel = "https://discord.com/api/webhooks/EXAMPLE/EXAMPLE/EXAMPLE"
+#          discord_token = "EXAMPLE"
+#        }
+#        email= {
+#          emails = ["test","test2"]
+#        }
     }
 }
 
@@ -45,8 +51,8 @@ resource "axiom_monitor" "test_monitor" {
   alert_on_no_data = false
 }
 
-resource "axiom_user" "topper" {
+resource "axiom_user" "test_user" {
   name = "axiom user"
-  email = "axiomuser@example.com"
+  email = "axiomusers@example.com"
   role = "owner"
 }
