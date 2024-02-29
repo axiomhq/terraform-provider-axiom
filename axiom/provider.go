@@ -14,6 +14,10 @@ import (
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
+const (
+	providerUserAgent = "terraform-provider-axiom/v0.0.1"
+)
+
 // Ensure the implementation satisfies the expected interfaces
 var (
 	_ provider.Provider = &axiomProvider{}
@@ -91,6 +95,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	ops := []ax.Option{
 		ax.SetPersonalTokenConfig(apiToken, orgID),
+		ax.SetUserAgent(providerUserAgent),
 	}
 
 	if baseUrl != "" {
