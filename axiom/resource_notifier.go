@@ -386,7 +386,6 @@ func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.No
 		ID:         plan.ID.ValueString(),
 		Name:       plan.Name.ValueString(),
 		Properties: axiom.NotifierProperties{},
-		Type:       "",
 	}
 
 	switch {
@@ -394,18 +393,15 @@ func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.No
 		notifier.Properties.Slack = &axiom.SlackConfig{
 			SlackURL: plan.Properties.Slack.SlackURL.ValueString(),
 		}
-		notifier.Type = "slack"
 	case plan.Properties.Discord != nil:
 		notifier.Properties.Discord = &axiom.DiscordConfig{
 			DiscordChannel: plan.Properties.Discord.DiscordChannel.ValueString(),
 			DiscordToken:   plan.Properties.Discord.DiscordToken.ValueString(),
 		}
-		notifier.Type = "discord"
 	case plan.Properties.DiscordWebhook != nil:
 		notifier.Properties.DiscordWebhook = &axiom.DiscordWebhookConfig{
 			DiscordWebhookURL: plan.Properties.DiscordWebhook.DiscordWebhookURL.ValueString(),
 		}
-		notifier.Type = "discordWebhook"
 	case plan.Properties.Email != nil:
 		values, diags := typeStringSliceToStringSlice(ctx, plan.Properties.Email.Emails.Elements())
 		if diags.HasError() {
@@ -414,24 +410,20 @@ func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.No
 		notifier.Properties.Email = &axiom.EmailConfig{
 			Emails: values,
 		}
-		notifier.Type = "email"
 	case plan.Properties.Opsgenie != nil:
 		notifier.Properties.Opsgenie = &axiom.OpsGenieConfig{
 			APIKey: plan.Properties.Opsgenie.APIKey.ValueString(),
 			IsEU:   plan.Properties.Opsgenie.IsEU.ValueBool(),
 		}
-		notifier.Type = "opsgenie"
 	case plan.Properties.Pagerduty != nil:
 		notifier.Properties.Pagerduty = &axiom.PagerDutyConfig{
 			RoutingKey: plan.Properties.Pagerduty.RoutingKey.ValueString(),
 			Token:      plan.Properties.Pagerduty.Token.ValueString(),
 		}
-		notifier.Type = "pagerduty"
 	case plan.Properties.Webhook != nil:
 		notifier.Properties.Webhook = &axiom.WebhookConfig{
 			URL: plan.Properties.Webhook.URL.ValueString(),
 		}
-		notifier.Type = "webhook"
 	}
 
 	return &notifier, diags

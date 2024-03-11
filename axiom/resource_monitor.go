@@ -3,6 +3,7 @@ package axiom
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -36,7 +37,7 @@ type MonitorResourceModel struct {
 	Description     types.String  `tfsdk:"description"`
 	ID              types.String  `tfsdk:"id"`
 	AlertOnNoData   types.Bool    `tfsdk:"alert_on_no_data"`
-	AplQuery        types.String  `tfsdk:"apl_query"`
+	APLQuery        types.String  `tfsdk:"apl_query"`
 	Disabled        types.Bool    `tfsdk:"disabled"`
 	IntervalMinutes types.Int64   `tfsdk:"interval_minutes"`
 	NotifierIds     types.List    `tfsdk:"notifier_ids"`
@@ -142,7 +143,7 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	monitor, err := r.client.Monitors.Create(ctx, *monitor)
+	monitor, err := r.client.Monitors.Create(ctx, axiom.MonitorCreateRequest{*monitor})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create Monitor, got error: %s", err))
 		return
@@ -184,7 +185,7 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), *monitor)
+	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{*monitor})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update Monitor", err.Error())
 		return
@@ -219,31 +220,32 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 	}
 
 	return &axiom.Monitor{
-		Name:            plan.Name.ValueString(),
-		AlertOnNoData:   plan.AlertOnNoData.ValueBool(),
-		AplQuery:        plan.AplQuery.ValueString(),
-		Description:     plan.Description.ValueString(),
-		Disabled:        plan.Disabled.ValueBool(),
-		IntervalMinutes: plan.IntervalMinutes.ValueInt64(),
-		NotifierIds:     notifierIds,
-		Operator:        plan.Operator.ValueString(),
-		RangeMinutes:    plan.RangeMinutes.ValueInt64(),
-		Threshold:       plan.Threshold.ValueFloat64(),
+		Name:          plan.Name.ValueString(),
+		AlertOnNoData: plan.AlertOnNoData.ValueBool(),
+		APLQuery:      plan.APLQuery.ValueString(),
+		Description:   plan.Description.ValueString(),
+		Disabled:      plan.Disabled.ValueBool(),
+		Interval:      time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
+		NotifierIDs:   notifierIds,
+		Operator:      plan.Operator.ValueString(),
+		Range:         time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
+		Threshold:     plan.Threshold.ValueFloat64(),
 	}, nil
 }
 
 func flattenMonitor(monitor *axiom.Monitor) *MonitorResourceModel {
+
 	return &MonitorResourceModel{
 		ID:              types.StringValue(monitor.ID),
 		Name:            types.StringValue(monitor.Name),
 		Description:     types.StringValue(monitor.Description),
 		AlertOnNoData:   types.BoolValue(monitor.AlertOnNoData),
-		AplQuery:        types.StringValue(monitor.AplQuery),
+		APLQuery:        types.StringValue(monitor.APLQuery),
 		Disabled:        types.BoolValue(monitor.Disabled),
-		IntervalMinutes: types.Int64Value(monitor.IntervalMinutes),
-		NotifierIds:     flattenStringSlice(monitor.NotifierIds),
+		IntervalMinutes: types.Int64Value(int64(monitor.Interval.Minutes())),
+		NotifierIds:     flattenStringSlice(monitor.NotifierIDs),
 		Operator:        types.StringValue(monitor.Operator),
-		RangeMinutes:    types.Int64Value(monitor.RangeMinutes),
+		RangeMinutes:    types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:       types.Float64Value(monitor.Threshold),
 	}
 }
