@@ -3,14 +3,17 @@ package axiom
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/axiomhq/axiom-go/axiom"
@@ -38,7 +41,7 @@ type MonitorResourceModel struct {
 	ID              types.String  `tfsdk:"id"`
 	AlertOnNoData   types.Bool    `tfsdk:"alert_on_no_data"`
 	APLQuery        types.String  `tfsdk:"apl_query"`
-	Disabled        types.Bool    `tfsdk:"disabled"`
+	DisabledUntil   types.String  `tfsdk:"disabled_until"`
 	IntervalMinutes types.Int64   `tfsdk:"interval_minutes"`
 	NotifierIds     types.List    `tfsdk:"notifier_ids"`
 	Operator        types.String  `tfsdk:"operator"`
@@ -77,9 +80,12 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "The query used inside the monitor",
 				Required:            true,
 			},
-			"disabled": schema.BoolAttribute{
-				MarkdownDescription: "Is the monitor disabled",
-				Required:            true,
+			"disabled_until": schema.StringAttribute{
+				MarkdownDescription: "The time the monitor will be disabled until",
+				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$`), "Disabled until is not a valid time format"),
+				},
 			},
 			"interval_minutes": schema.Int64Attribute{
 				MarkdownDescription: "How often the monitor should run",
@@ -93,6 +99,14 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"operator": schema.StringAttribute{
 				MarkdownDescription: "Operator used in monitor trigger evaluation",
 				Required:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOf([]string{
+						axiom.Below.String(),
+						axiom.BelowOrEqual.String(),
+						axiom.Above.String(),
+						axiom.AboveOrEqual.String(),
+					}...),
+				},
 			},
 			"range_minutes": schema.Int64Attribute{
 				MarkdownDescription: "Query time range from now",
@@ -219,32 +233,58 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		return nil, diags
 	}
 
+	var disabledUntil time.Time
+	if !plan.DisabledUntil.IsNull() {
+		var err error
+		disabledUntil, err = time.Parse(time.RFC3339, plan.DisabledUntil.ValueString())
+		if err != nil {
+			diags.AddError("invalid disabled until", plan.DisabledUntil.String())
+			diags.AddError("failed to parse disabled until as RFC3339", err.Error())
+			return nil, diags
+		}
+	}
+
+	var operator axiom.Operator
+	switch plan.Operator.ValueString() {
+	case axiom.Below.String():
+		operator = axiom.Below
+	case axiom.BelowOrEqual.String():
+		operator = axiom.BelowOrEqual
+	case axiom.Above.String():
+		operator = axiom.Above
+	case axiom.AboveOrEqual.String():
+		operator = axiom.AboveOrEqual
+	}
+
 	return &axiom.Monitor{
 		Name:          plan.Name.ValueString(),
 		AlertOnNoData: plan.AlertOnNoData.ValueBool(),
 		APLQuery:      plan.APLQuery.ValueString(),
 		Description:   plan.Description.ValueString(),
-		Disabled:      plan.Disabled.ValueBool(),
+		DisabledUntil: disabledUntil,
 		Interval:      time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
 		NotifierIDs:   notifierIds,
-		Operator:      plan.Operator.ValueString(),
+		Operator:      operator,
 		Range:         time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
 		Threshold:     plan.Threshold.ValueFloat64(),
 	}, nil
 }
 
 func flattenMonitor(monitor *axiom.Monitor) *MonitorResourceModel {
-
+	var disabledUntil types.String
+	if !monitor.DisabledUntil.IsZero() {
+		disabledUntil = types.StringValue(monitor.DisabledUntil.Format(time.RFC3339))
+	}
 	return &MonitorResourceModel{
 		ID:              types.StringValue(monitor.ID),
 		Name:            types.StringValue(monitor.Name),
 		Description:     types.StringValue(monitor.Description),
 		AlertOnNoData:   types.BoolValue(monitor.AlertOnNoData),
 		APLQuery:        types.StringValue(monitor.APLQuery),
-		Disabled:        types.BoolValue(monitor.Disabled),
+		DisabledUntil:   disabledUntil,
 		IntervalMinutes: types.Int64Value(int64(monitor.Interval.Minutes())),
 		NotifierIds:     flattenStringSlice(monitor.NotifierIDs),
-		Operator:        types.StringValue(monitor.Operator),
+		Operator:        types.StringValue(monitor.Operator.String()),
 		RangeMinutes:    types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:       types.Float64Value(monitor.Threshold),
 	}
