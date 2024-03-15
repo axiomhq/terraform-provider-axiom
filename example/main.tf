@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     axiom = {
-      source  = "locally/debug/axiom"
+      source  = "axiomhq/axiom"
       version = "1.0"
     }
   }
