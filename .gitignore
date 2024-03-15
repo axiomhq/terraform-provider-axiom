@@ -4,6 +4,7 @@ vendor
 terraform-provider-hashicups
 bin
 
+.idea
 # Local .terraform directories
 **/.terraform/*
 
