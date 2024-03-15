@@ -163,8 +163,7 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan = *flattenMonitor(monitor)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
 }
 
 func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -181,8 +180,7 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	plan = *flattenMonitor(monitor)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
 }
 
 func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -205,8 +203,7 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	plan = *flattenMonitor(monitor)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
 }
 
 func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -270,12 +267,12 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 	}, nil
 }
 
-func flattenMonitor(monitor *axiom.Monitor) *MonitorResourceModel {
+func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 	var disabledUntil types.String
 	if !monitor.DisabledUntil.IsZero() {
 		disabledUntil = types.StringValue(monitor.DisabledUntil.Format(time.RFC3339))
 	}
-	return &MonitorResourceModel{
+	return MonitorResourceModel{
 		ID:              types.StringValue(monitor.ID),
 		Name:            types.StringValue(monitor.Name),
 		Description:     types.StringValue(monitor.Description),

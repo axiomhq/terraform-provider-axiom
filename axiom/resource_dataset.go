@@ -106,8 +106,7 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan = *flattenDataset(ds)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
 func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -124,8 +123,7 @@ func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	plan = *flattenDataset(ds)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
 func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -144,8 +142,7 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	plan = *flattenDataset(ds)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
 func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -166,8 +163,8 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func flattenDataset(dataset *axiom.Dataset) *DatasetResourceModel {
-	return &DatasetResourceModel{
+func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
+	return DatasetResourceModel{
 		Name:        types.StringValue(dataset.Name),
 		Description: types.StringValue(dataset.Description),
 		ID:          types.StringValue(dataset.ID),

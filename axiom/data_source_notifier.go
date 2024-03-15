@@ -69,6 +69,5 @@ func (d *NotifierDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	plan = flattenNotifier(*notifier)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
 }

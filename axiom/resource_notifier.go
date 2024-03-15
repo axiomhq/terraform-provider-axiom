@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
@@ -302,9 +301,7 @@ func (r *NotifierResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	plan = flattenNotifier(*notifier)
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
 }
 
 func (r *NotifierResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -323,11 +320,7 @@ func (r *NotifierResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	flattenedNotifier := flattenNotifier(*notifier)
-	plan = flattenedNotifier
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
 }
 
 func (r *NotifierResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -351,11 +344,7 @@ func (r *NotifierResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	flattenedNotifier := flattenNotifier(*notifier)
-	plan = flattenedNotifier
-
-	// Save updated plan into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
 }
 
 func (r *NotifierResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -372,8 +361,6 @@ func (r *NotifierResource) Delete(ctx context.Context, req resource.DeleteReques
 		resp.Diagnostics.AddError("Failed to delete Notifier", err.Error())
 		return
 	}
-
-	tflog.Info(ctx, "deleted Notifier resource", map[string]interface{}{"id": data.ID.ValueString()})
 }
 
 func (r *NotifierResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

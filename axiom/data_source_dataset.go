@@ -71,6 +71,5 @@ func (d *DatasetDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	plan = *flattenDataset(ds)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }

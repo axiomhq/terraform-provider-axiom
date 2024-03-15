@@ -1,16 +1,16 @@
 terraform {
   required_providers {
     axiom = {
-      source  = "axiom"
-      version = "0.0.0"
+      source  = "locally/debug/axiom"
+      version = "1.0"
     }
   }
 }
 
 provider "axiom" {
-  token    = ""
-  org_id   = ""
-  base_url = "https://api.axiom.co"
+  api_token = ""
+  org_id    = ""
+  base_url  = "https://api.axiom.co"
 }
 
 // create a dataset resource with name and description
@@ -56,5 +56,5 @@ EOT
 resource "axiom_user" "test_user" {
   name  = "axiom user"
   email = "axiomusers@example.com"
-  role  = "owner"
+  role  = "user"
 }
