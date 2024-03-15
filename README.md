@@ -20,8 +20,8 @@ configure the provider with your personal API token and organization ID
 
 ```hcl
 provider "axiom" {
-  token = "your_personal_api_token_here"
-  org_id = "organization_id_here"
+  api_token = "your_personal_api_token_here"
+  org_id    = "organization_id_here"
 }
 ```
 
@@ -42,7 +42,7 @@ data "axiom_dataset" "testing_ds" {
 }
 ```
 
-For more examples, checkout the [playground directory](playground/main.tf)
+For more examples, checkout the [example directory](example/main.tf)
 
 
 ## Development
