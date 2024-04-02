@@ -51,6 +51,7 @@ EOT
     axiom_notifier.slack_test.id
   ]
   alert_on_no_data = false
+  notify_by_group  = false
 }
 
 resource "axiom_user" "test_user" {

@@ -40,6 +40,7 @@ type MonitorResourceModel struct {
 	Description     types.String  `tfsdk:"description"`
 	ID              types.String  `tfsdk:"id"`
 	AlertOnNoData   types.Bool    `tfsdk:"alert_on_no_data"`
+	NotifyByGroup   types.Bool    `tfsdk:"notify_by_group"`
 	APLQuery        types.String  `tfsdk:"apl_query"`
 	DisabledUntil   types.String  `tfsdk:"disabled_until"`
 	IntervalMinutes types.Int64   `tfsdk:"interval_minutes"`
@@ -74,6 +75,10 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"alert_on_no_data": schema.BoolAttribute{
 				MarkdownDescription: "If the monitor should trigger an alert if there is no data",
+				Required:            true,
+			},
+			"notify_by_group": schema.BoolAttribute{
+				MarkdownDescription: "If the monitor should track non-time groups separately",
 				Required:            true,
 			},
 			"apl_query": schema.StringAttribute{
@@ -256,6 +261,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 	return &axiom.Monitor{
 		Name:          plan.Name.ValueString(),
 		AlertOnNoData: plan.AlertOnNoData.ValueBool(),
+		NotifyByGroup: plan.NotifyByGroup.ValueBool(),
 		APLQuery:      plan.APLQuery.ValueString(),
 		Description:   plan.Description.ValueString(),
 		DisabledUntil: disabledUntil,
@@ -277,6 +283,7 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		Name:            types.StringValue(monitor.Name),
 		Description:     types.StringValue(monitor.Description),
 		AlertOnNoData:   types.BoolValue(monitor.AlertOnNoData),
+		NotifyByGroup:   types.BoolValue(monitor.NotifyByGroup),
 		APLQuery:        types.StringValue(monitor.APLQuery),
 		DisabledUntil:   disabledUntil,
 		IntervalMinutes: types.Int64Value(int64(monitor.Interval.Minutes())),
