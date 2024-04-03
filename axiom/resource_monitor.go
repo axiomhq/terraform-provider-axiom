@@ -48,6 +48,7 @@ type MonitorResourceModel struct {
 	Operator        types.String  `tfsdk:"operator"`
 	RangeMinutes    types.Int64   `tfsdk:"range_minutes"`
 	Threshold       types.Float64 `tfsdk:"threshold"`
+	Resolvable      types.Bool    `tfsdk:"resolvable"`
 }
 
 func (r *MonitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -120,6 +121,11 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"threshold": schema.Float64Attribute{
 				MarkdownDescription: "The threshold where the monitor should trigger",
 				Required:            true,
+			},
+			"resolvable": schema.BoolAttribute{
+				MarkdownDescription: "Determines whether the events triggered by the monitor are individually resolvable. " +
+					"This has no effect on threshold monitors",
+				Required: true,
 			},
 		},
 	}
@@ -270,6 +276,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		Operator:      operator,
 		Range:         time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
 		Threshold:     plan.Threshold.ValueFloat64(),
+		Resolvable:    plan.Resolvable.ValueBool(),
 	}, nil
 }
 
@@ -291,5 +298,6 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		Operator:        types.StringValue(monitor.Operator.String()),
 		RangeMinutes:    types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:       types.Float64Value(monitor.Threshold),
+		Resolvable:      types.BoolValue(monitor.Resolvable),
 	}
 }
