@@ -1,6 +1,6 @@
 # Axiom Terraform Provider
 
-A Terraform provider that allows you to manage your data in [Axiom](https://axiom.co/).
+A Terraform provider that allows you to manage resources in [Axiom](https://axiom.co/).
 
 Axiom lets you make the most of your event data without compromises: all your data, all the time, for all possible needs. Say goodbye to data sampling, waiting times, and hefty fees.
 
