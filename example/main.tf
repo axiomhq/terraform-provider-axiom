@@ -2,14 +2,14 @@ terraform {
   required_providers {
     axiom = {
       source  = "axiomhq/axiom"
-      version = "1.0"
+      version = "1.0.1"
     }
   }
 }
 
 provider "axiom" {
-  api_token = ""
-  org_id    = ""
+  api_token = "API_TOKEN"
+  org_id    = "ORG_ID"
   base_url  = "https://api.axiom.co"
 }
 
