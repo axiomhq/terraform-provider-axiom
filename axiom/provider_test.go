@@ -131,6 +131,7 @@ func testAccAxiomDatasetConfig_basic() string {
 		]
 		alert_on_no_data = false
 		notify_by_group  = false
+		resolvable       = false
 	}
 `
 }
