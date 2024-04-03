@@ -1,50 +1,64 @@
 # Axiom Terraform Provider
 
-The axiom providers allows you to create and manage datasets in Axiom.
+A Terraform provider that allows you to create and manage datasets in Axiom.
 
-## Usage
+📖 For more information, see the [documentation](https://registry.terraform.io/providers/axiomhq/axiom/latest/docs).
 
-import the provider
+🔧 To see the provider in action, check out the [example](example/main.tf).
 
-```hcl
-terraform {
-  required_providers {
-    axiom = {
-      source = "axiom-provider"
+❓ Issues or feedback? [Contact us](https://axiom.co/contact) or [join the Axiom Discord community](https://axiom.co/discord).
+
+## Prerequisites
+
+- [Sign up for a free Axiom account](https://app.axiom.co/register). All you need is an email address.
+- [Create an API token in Axiom with permissions to query and ingest data](https://axiom.co/docs/reference/settings#access-overview).
+
+## Install the provider
+
+To install the Axiom Terraform Provider from the [Terraform Registry](https://registry.terraform.io/providers/axiomhq/axiom/latest), follow these steps:
+
+1. Add the following code to your Terraform configuration file. Replace `API_TOKEN` with the Axiom API token you have generated. For added security, store the API token in an environment variable.
+
+    ```hcl
+    terraform {
+      required_providers {
+        axiom = {
+          source  = "axiomhq/axiom"
+        }
+      }
     }
-  }
-}
-```
 
-configure the provider with your personal API token and organization ID
+    provider "axiom" {
+      api_token = "API_TOKEN"
+    }
+    ```
 
-```hcl
-provider "axiom" {
-  api_token = "your_personal_api_token_here"
-  org_id    = "organization_id_here"
-}
-```
+2. In your terminal, go to the folder of your main Terraform configuration file, and then run the command `terraform init`.
 
-finally, create dataset resources
+## Create a dataset
+
+To create a dataset in Axiom using the provider, add the following code to your Terraform configuration file:
 
 ```hcl
 resource "axiom_dataset" "example" {
   name = "example"
-  description = "an example dataset created by terraform"
+  description = "This is an example dataset created by Terraform."
 }
 ```
 
-or, create a dataset datasource to reference an existing dataset
+## Access existing dataset
+
+To access an existing dataset in Axiom using the provider, follow these steps:
+
+1. Determine the ID of the Axiom dataset using the [`getDatasets` query of the Axiom API](https://axiom.co/docs/restapi/endpoints/getDatasets).
+2. Add the following code to your Terraform configuration file. Replace `DATASET_ID` with the ID of the Axiom dataset.
 
 ```hcl
-data "axiom_dataset" "testing_ds" {
-  id = "testing"
+data "axiom_dataset" "testing_dataset" {
+  id = "DATASET_ID"
 }
 ```
 
-For more examples, checkout the [example directory](example/main.tf)
+## License
 
-
-## Development
-
-The axiom provider utilizes axiom-go sdk under the hood.
+For more information on licensing, see [LICENSE](./LICENSE).
