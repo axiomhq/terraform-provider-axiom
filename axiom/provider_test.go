@@ -135,3 +135,44 @@ func testAccAxiomDatasetConfig_basic() string {
 	}
 `
 }
+
+func TestAccAxiomResources_data(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	emailToAssert := "test@axiom.co"
+	n, err := client.Notifiers.Create(context.Background(), ax.Notifier{Name: "my notifier", Properties: ax.NotifierProperties{Email: &ax.EmailConfig{
+		Emails: []string{emailToAssert},
+	}}})
+
+	defer func() {
+		assert.NoError(t, client.Notifiers.Delete(context.Background(), n.ID))
+	}()
+
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						org_id    = "` + os.Getenv("AXIOM_ORG_ID") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					data "axiom_notifier" "my-notifier" {
+						id = "` + n.ID + `"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.#", "1"),
+					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.0", emailToAssert),
+				),
+			},
+		},
+	})
+}
