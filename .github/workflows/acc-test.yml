@@ -1,0 +1,34 @@
+name: acc-tests
+
+on:
+  schedule:
+    - cron: 0 0 * * *
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    env:
+      GO111MODULE: on
+    strategy:
+      matrix:
+        go-version: [ 1.21.x ]
+        os: [ ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Acceptance Tests
+        env:
+          AXIOM_TOKEN: ${{ secrets.TF_PROVIDER_API_TOKEN }}
+          AXIOM_ORG_ID: ${{ vars.AXIOM_ORG_ID }}
+          AXIOM_URL: ${{ vars.AXIOM_URL }}
+        run: |
+          make testacc
