@@ -35,9 +35,9 @@ type NotifierResource struct {
 
 // NotifierResourceModel describes the resource data model.
 type NotifierResourceModel struct {
-	ID         types.String       `tfsdk:"id"`
-	Name       types.String       `tfsdk:"name"`
-	Properties NotifierProperties `tfsdk:"properties"`
+	ID         types.String        `tfsdk:"id"`
+	Name       types.String        `tfsdk:"name"`
+	Properties *NotifierProperties `tfsdk:"properties"`
 }
 
 type NotifierProperties struct {
@@ -424,7 +424,7 @@ func flattenNotifier(notifier axiom.Notifier) NotifierResourceModel {
 	}
 }
 
-func buildNotifierProperties(properties axiom.NotifierProperties) NotifierProperties {
+func buildNotifierProperties(properties axiom.NotifierProperties) *NotifierProperties {
 	var notifierProperties NotifierProperties
 	if properties.Discord != nil {
 		notifierProperties.Discord = &DiscordConfig{
@@ -464,7 +464,7 @@ func buildNotifierProperties(properties axiom.NotifierProperties) NotifierProper
 			URL: types.StringValue(properties.Webhook.URL),
 		}
 	}
-	return notifierProperties
+	return &notifierProperties
 }
 
 func flattenStringSlice(values []string) types.List {
