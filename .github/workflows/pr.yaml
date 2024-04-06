@@ -21,35 +21,35 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go:
-          - "1.21"
-          - "1.22"
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go }}
+          go-version-file: go.mod
           cache: false
+
       - run: echo "GOLANGCI_LINT_VERSION=$(go list -m -f '{{.Version}}' github.com/golangci/golangci-lint)" >> $GITHUB_ENV
       - uses: golangci/golangci-lint-action@v4
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m
 
   build:
+    name: Build
+    runs-on: ubuntu-latest
     env:
       GO111MODULE: on
-    strategy:
-      matrix:
-        go-version: [ 1.21.x ]
-        os: [ ubuntu-latest ]
-    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
+          cache: false
+
       - name: Run build
         run: make build
