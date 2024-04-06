@@ -12,19 +12,19 @@ on:
 
 jobs:
   test:
+    name: Acceptance Tests
+    runs-on: ubuntu-latest
     env:
       GO111MODULE: on
-    strategy:
-      matrix:
-        go-version: [ 1.21.x ]
-        os: [ ubuntu-latest ]
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
+          cache: false
+
       - name: Acceptance Tests
         env:
           AXIOM_TOKEN: ${{ secrets.TF_PROVIDER_API_TOKEN }}
