@@ -13,11 +13,9 @@ Axiom lets you make the most of your event data without compromises: all your da
 ## Prerequisites
 
 - [Sign up for a free Axiom account](https://app.axiom.co/register). All you need is an email address.
-- [Create an API token in Axiom with permissions to query and ingest data](https://axiom.co/docs/reference/settings#access-overview).
+- [Create an advanced API token in Axiom](https://axiom.co/docs/reference/tokens#create-advanced-api-token) with the permissions to perform the actions you want to use Terraform for. For example, to use Terraform to create and update datasets, create the advanced API token with these permissions.
 - [Create a Terraform account](https://app.terraform.io/signup/account).
 - [Install the Terraform CLI](https://developer.hashicorp.com/terraform/cli).
-
-TODO NEEDS INFO ABOUT FINE GRAINED TOKENS
 
 ## Install the provider
 
