@@ -2,7 +2,7 @@ terraform {
   required_providers {
     axiom = {
       source  = "axiomhq/axiom"
-      version = "1.0.1"
+      version = "1.0.4"
     }
   }
 }
@@ -58,6 +58,7 @@ resource "axiom_monitor" "test_monitor" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
+  resolvable = false
 }
 
 resource "axiom_user" "test_user" {
