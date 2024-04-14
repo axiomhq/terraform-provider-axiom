@@ -168,7 +168,7 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	monitor, err := r.client.Monitors.Create(ctx, axiom.MonitorCreateRequest{*monitor})
+	monitor, err := r.client.Monitors.Create(ctx, axiom.MonitorCreateRequest{Monitor: *monitor})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create Monitor, got error: %s", err))
 		return
@@ -208,7 +208,7 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{*monitor})
+	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{Monitor: *monitor})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update Monitor", err.Error())
 		return
