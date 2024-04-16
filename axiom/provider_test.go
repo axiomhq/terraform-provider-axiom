@@ -27,7 +27,19 @@ func TestAccAxiomResources_basic(t *testing.T) {
 		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAxiomDatasetConfig_basic(),
+				Config: testAccAxiomDatasetConfig_basic(os.Getenv("AXIOM_ORG_ID")),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "test-dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
+					testAccCheckAxiomResourcesExist(client, "axiom_notifier.slack_test"),
+					resource.TestCheckResourceAttr("axiom_notifier.slack_test", "name", "slack_test"),
+				),
+			},
+			{
+				Config: testAccAxiomDatasetConfig_basic(""),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "test-dataset"),
@@ -43,8 +55,8 @@ func TestAccAxiomResources_basic(t *testing.T) {
 }
 
 func testAccPreCheck(t *testing.T) {
-	if os.Getenv("AXIOM_TOKEN") == "" || os.Getenv("AXIOM_ORG_ID") == "" {
-		t.Fatalf("AXIOM_TOKEN and AXIOM_ORG_ID must be set for acceptance tests")
+	if os.Getenv("AXIOM_TOKEN") == "" {
+		t.Fatalf("AXIOM_TOKEN must be set for acceptance tests")
 	}
 }
 
@@ -91,11 +103,11 @@ func testAccCheckAxiomResourcesExist(client *ax.Client, n string) resource.TestC
 	}
 }
 
-func testAccAxiomDatasetConfig_basic() string {
+func testAccAxiomDatasetConfig_basic(orgID string) string {
 	return `
 	provider "axiom" {
 		api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-		org_id    = "` + os.Getenv("AXIOM_ORG_ID") + `"
+		org_id    = "` + orgID + `"
 		base_url  = "` + os.Getenv("AXIOM_URL") + `"
 	}
 	
@@ -131,7 +143,6 @@ func testAccAxiomDatasetConfig_basic() string {
 		]
 		alert_on_no_data = false
 		notify_by_group  = false
-		resolvable       = false
 	}
 `
 }
