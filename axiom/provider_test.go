@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -85,19 +86,72 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 	}
 }
 
-func testAccCheckAxiomResourcesExist(client *ax.Client, n string) resource.TestCheckFunc {
+func testAccCheckAxiomResourcesExist(client *ax.Client, resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		for _, resource := range s.Modules[0].Resources {
-			var err error
-			switch resource.Type {
-			case "axiom_notifier":
-				_, err = client.Notifiers.Get(context.Background(), resource.Primary.ID)
-			case "axiom_dataset":
-				_, err = client.Datasets.Get(context.Background(), resource.Primary.ID)
-			case "axiom_monitor":
-				_, err = client.Monitors.Get(context.Background(), resource.Primary.ID)
-			}
-			return err
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource not found: %s", resourceName)
+		}
+
+		var err error
+		switch rs.Type {
+		case "axiom_notifier":
+			_, err = client.Notifiers.Get(context.Background(), rs.Primary.ID)
+		case "axiom_dataset":
+			_, err = client.Datasets.Get(context.Background(), rs.Primary.ID)
+		case "axiom_monitor":
+			_, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
+		}
+		return err
+	}
+}
+
+func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, tfKey, apiKey string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource not found: %s", resourceName)
+		}
+
+		var err error
+		var actual any
+		switch rs.Type {
+		case "axiom_notifier":
+			actual, err = client.Notifiers.Get(context.Background(), rs.Primary.ID)
+		case "axiom_dataset":
+			actual, err = client.Datasets.Get(context.Background(), rs.Primary.ID)
+		case "axiom_monitor":
+			actual, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
+		}
+		if err != nil {
+			return fmt.Errorf("error fetching %s from Axiom: %s", rs.Type, err)
+		}
+
+		actualJSON, err := json.Marshal(actual)
+		if err != nil {
+			return fmt.Errorf("error marshaling actual object to JSON: %s", err)
+		}
+
+		// Unmarshal JSON into a map for easy comparison
+		var actualMap map[string]interface{}
+		err = json.Unmarshal(actualJSON, &actualMap)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling JSON to map: %s", err)
+		}
+
+		// Loop through properties to compare them
+		stateValue, found := rs.Primary.Attributes[tfKey]
+		if !found {
+			return fmt.Errorf("property %s not found in Terraform state", tfKey)
+		}
+
+		actualValue, found := actualMap[apiKey]
+		if !found {
+			return fmt.Errorf("property %s not found in API response", apiKey)
+		}
+
+		if fmt.Sprintf("%v", actualValue) != stateValue {
+			return fmt.Errorf("mismatch for %s|%s: expected %s, got %v", tfKey, apiKey, stateValue, actualValue)
 		}
 		return nil
 	}
@@ -155,17 +209,17 @@ func TestAccAxiomResources_data(t *testing.T) {
 	n, err := client.Notifiers.Create(context.Background(), ax.Notifier{Name: "my notifier", Properties: ax.NotifierProperties{Email: &ax.EmailConfig{
 		Emails: []string{emailToAssert},
 	}}})
+	assert.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, client.Notifiers.Delete(context.Background(), n.ID))
 	}()
 
-	assert.NoError(t, err)
-
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
 		Steps: []resource.TestStep{
 			{
 				Config: `
@@ -182,6 +236,55 @@ func TestAccAxiomResources_data(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.#", "1"),
 					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.0", emailToAssert),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAxiomResources_resolvable(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "new-dataset"
+						description = "A test dataset"
+					}
+
+					resource "axiom_monitor" "new_monitor" {
+						depends_on       = [axiom_dataset.test]
+
+						name             = "test monitor"
+						description      = "new_monitor updated"
+						apl_query        = <<EOT
+							['new-dataset']
+							| summarize count() by bin_auto(_time)
+							EOT
+						interval_minutes = 5
+						operator         = "Above"
+						range_minutes    = 5
+						threshold        = 1
+						alert_on_no_data = false
+						notify_by_group  = true
+						resolvable 		 = true
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "resolvable", "resolvable"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "notify_by_group", "notifyByGroup"),
 				),
 			},
 		},

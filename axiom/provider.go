@@ -54,6 +54,7 @@ func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			"org_id": schema.StringAttribute{
 				Required:            false,
 				MarkdownDescription: "The Axiom organization ID.",
+				Optional:            true,
 			},
 			"base_url": schema.StringAttribute{
 				Optional:            true,
