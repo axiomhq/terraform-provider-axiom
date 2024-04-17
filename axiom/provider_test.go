@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
@@ -31,7 +32,7 @@ func TestAccAxiomResources_basic(t *testing.T) {
 				Config: testAccAxiomDatasetConfig_basic(os.Getenv("AXIOM_ORG_ID")),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
-					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "test-dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
@@ -43,7 +44,7 @@ func TestAccAxiomResources_basic(t *testing.T) {
 				Config: testAccAxiomDatasetConfig_basic(""),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
-					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "test-dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
@@ -63,7 +64,10 @@ func testAccPreCheck(t *testing.T) {
 
 func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.State) error {
 	return func(s *terraform.State) error {
-		for id, resource := range s.Modules[0].Resources {
+		for id, resource := range s.RootModule().Resources {
+			if strings.HasPrefix(id, "data.") {
+				continue
+			}
 			var err error
 			switch resource.Type {
 			case "axiom_notifier":
@@ -166,7 +170,7 @@ func testAccAxiomDatasetConfig_basic(orgID string) string {
 	}
 	
 	resource "axiom_dataset" "test" {
-		name        = "test-dataset"
+		name        = "terraform-provider-dataset"
 		description = "A test dataset"
 	}
 
@@ -185,7 +189,7 @@ func testAccAxiomDatasetConfig_basic(orgID string) string {
 		name             = "test monitor"
 		description      = "test_monitor updated"
 		apl_query        = <<EOT
-			['test-dataset']
+			['terraform-provider-dataset']
 			| summarize count() by bin_auto(_time)
 			EOT
 		interval_minutes = 5
