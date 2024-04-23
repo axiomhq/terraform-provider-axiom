@@ -9,7 +9,6 @@ terraform {
 
 provider "axiom" {
   api_token = "API_TOKEN"
-  org_id    = "ORG_ID"
   base_url  = "https://api.axiom.co"
 }
 

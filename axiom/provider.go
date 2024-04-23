@@ -3,6 +3,7 @@ package axiom
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -26,7 +27,6 @@ var (
 // AxiomProviderModel describes the provider data model.
 type AxiomProviderModel struct {
 	ApiToken types.String `tfsdk:"api_token"`
-	OrgID    types.String `tfsdk:"org_id"`
 	BaseUrl  types.String `tfsdk:"base_url"`
 }
 
@@ -51,10 +51,6 @@ func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 				Required:            true,
 				MarkdownDescription: "The Axiom API token.",
 			},
-			"org_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The Axiom organization ID.",
-			},
 			"base_url": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "The base url of the axiom api.",
@@ -70,7 +66,18 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if config.ApiToken.IsNull() {
+
+	apiToken := os.Getenv("AXIOM_API_TOKEN")
+	baseUrl := os.Getenv("AXIOM_BASE_URL")
+
+	if !config.ApiToken.IsNull() {
+		apiToken = config.ApiToken.ValueString()
+	}
+	if !config.BaseUrl.IsNull() {
+		baseUrl = config.BaseUrl.ValueString()
+	}
+
+	if apiToken == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("token"),
 			"ApiToken is required",
@@ -79,22 +86,13 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	apiToken := os.Getenv("AXIOM_API_TOKEN")
-	orgID := os.Getenv("AXIOM_ORG_ID")
-	baseUrl := os.Getenv("AXIOM_BASE_URL")
-
-	if !config.ApiToken.IsNull() {
-		apiToken = config.ApiToken.ValueString()
-	}
-	if !config.OrgID.IsNull() {
-		orgID = config.OrgID.ValueString()
-	}
-	if !config.BaseUrl.IsNull() {
-		baseUrl = config.BaseUrl.ValueString()
+	if !strings.HasPrefix(apiToken, "xaat-") {
+		resp.Diagnostics.AddError("invalid api token", "Please set a valid advanced api token in the provider configuration block.")
+		return
 	}
 
 	ops := []ax.Option{
-		ax.SetPersonalTokenConfig(apiToken, orgID),
+		ax.SetAPITokenConfig(apiToken),
 		ax.SetUserAgent(providerUserAgent),
 	}
 

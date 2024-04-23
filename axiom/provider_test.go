@@ -7,12 +7,13 @@ import (
 	"os"
 	"testing"
 
-	ax "github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
+
+	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 func TestAccAxiomResources_basic(t *testing.T) {
@@ -43,8 +44,8 @@ func TestAccAxiomResources_basic(t *testing.T) {
 }
 
 func testAccPreCheck(t *testing.T) {
-	if os.Getenv("AXIOM_TOKEN") == "" || os.Getenv("AXIOM_ORG_ID") == "" {
-		t.Fatalf("AXIOM_TOKEN and AXIOM_ORG_ID must be set for acceptance tests")
+	if os.Getenv("AXIOM_TOKEN") == "" {
+		t.Fatalf("AXIOM_TOKEN must be set for acceptance tests")
 	}
 }
 
@@ -95,7 +96,6 @@ func testAccAxiomDatasetConfig_basic() string {
 	return `
 	provider "axiom" {
 		api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-		org_id    = "` + os.Getenv("AXIOM_ORG_ID") + `"
 		base_url  = "` + os.Getenv("AXIOM_URL") + `"
 	}
 	
@@ -160,7 +160,6 @@ func TestAccAxiomResources_data(t *testing.T) {
 				Config: `
 					provider "axiom" {
 						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-						org_id    = "` + os.Getenv("AXIOM_ORG_ID") + `"
 						base_url  = "` + os.Getenv("AXIOM_URL") + `"
 					}
 

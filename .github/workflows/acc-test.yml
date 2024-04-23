@@ -28,7 +28,6 @@ jobs:
       - name: Acceptance Tests
         env:
           AXIOM_TOKEN: ${{ secrets.TF_PROVIDER_API_TOKEN }}
-          AXIOM_ORG_ID: ${{ vars.AXIOM_ORG_ID }}
           AXIOM_URL: ${{ vars.AXIOM_URL }}
         run: |
           make testacc
