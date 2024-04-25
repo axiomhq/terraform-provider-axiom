@@ -13,7 +13,9 @@ Axiom lets you make the most of your event data without compromises: all your da
 ## Prerequisites
 
 - [Sign up for a free Axiom account](https://app.axiom.co/register). All you need is an email address.
-- [Create an API token in Axiom with permissions to query and ingest data](https://axiom.co/docs/reference/settings#access-overview).
+- [Create an advanced API token in Axiom](https://axiom.co/docs/reference/tokens#create-advanced-api-token) with the permissions to perform the actions you want to use. For example, to use Terraform to create and update datasets, create the advanced API token with these permissions.
+- [Create a Terraform account](https://app.terraform.io/signup/account).
+- [Install the Terraform CLI](https://developer.hashicorp.com/terraform/cli).
 
 ## Install the provider
 
@@ -42,9 +44,9 @@ To install the Axiom Terraform Provider from the [Terraform Registry](https://re
 To create a dataset in Axiom using the provider, add the following code to your Terraform configuration file:
 
 ```hcl
-resource "axiom_dataset" "example" {
-  name = "example"
-  description = "This is an example dataset created by Terraform."
+resource "axiom_dataset" "test_dataset" {
+  name = "test_dataset"
+  description = "This is a test dataset created by Terraform."
 }
 ```
 
@@ -56,7 +58,7 @@ To access an existing dataset in Axiom using the provider, follow these steps:
 2. Add the following code to your Terraform configuration file. Replace `DATASET_ID` with the ID of the Axiom dataset.
 
 ```hcl
-data "axiom_dataset" "testing_dataset" {
+data "axiom_dataset" "test_dataset" {
   id = "DATASET_ID"
 }
 ```

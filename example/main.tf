@@ -9,52 +9,59 @@ terraform {
 
 provider "axiom" {
   api_token = "API_TOKEN"
-  base_url  = "https://api.axiom.co"
 }
 
-// create a dataset resource with name and description
-resource "axiom_dataset" "testing_dataset" {
-  name        = "created_via_terraform"
-  description = "testing datasets using tf"
+resource "axiom_dataset" "test_dataset" {
+  name = "test_dataset"
+  description = "This is a test dataset created by Terraform."
 }
 
-resource "axiom_notifier" "slack_test" {
-  name = "slack_test"
+resource "axiom_notifier" "test_slack_notifier" {
+  name = "test_slack_notifier"
   properties = {
     slack = {
-      slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
+      slack_url = "SLACK_URL"
     }
-    #        discord = {
-    #          discord_channel = "https://discord.com/api/webhooks/EXAMPLE/EXAMPLE/EXAMPLE"
-    #          discord_token = "EXAMPLE"
-    #        }
-    #        email= {
-    #          emails = ["test","test2"]
-    #        }
+  }
+}
+
+resource "axiom_notifier" "test_discord_notifier" {
+  name = "test_discord_notifier"
+  properties = {
+    discord = {
+      discord_channel = "DISCORD_CHANNEL"
+      discord_token = "DISCORD_TOKEN"
+    }
+  }
+}
+
+resource "axiom_notifier" "test_email_notifier" {
+  name = "test_email_notifier"
+  properties = {
+    email= {
+      emails = ["EMAIL1","EMAIL2"]
+    }
   }
 }
 
 resource "axiom_monitor" "test_monitor" {
-  depends_on       = [axiom_dataset.testing_dataset, axiom_notifier.slack_test]
-  name             = "test monitor"
-  description      = "test_monitor updated"
-  apl_query        = <<EOT
-['created_via_terraform']
-| summarize count() by bin_auto(_time)
-EOT
+  depends_on       = [axiom_dataset.test_dataset, axiom_notifier.test_slack_notifier]
+  name             = "test_monitor"
+  description      = "This is a test monitor created by Terraform."
+  apl_query        = "['test_dataset'] | summarize count() by bin_auto(_time)"
   interval_minutes = 5
   operator         = "Above"
   range_minutes    = 5
   threshold        = 1
   notifier_ids = [
-    axiom_notifier.slack_test.id
+    axiom_notifier.test_slack_notifier.id
   ]
   alert_on_no_data = false
   notify_by_group  = false
 }
 
 resource "axiom_user" "test_user" {
-  name  = "axiom user"
-  email = "axiomusers@example.com"
+  name  = "test_user"
+  email = "test@abc.com"
   role  = "user"
 }
