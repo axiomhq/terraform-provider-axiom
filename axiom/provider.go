@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	providerUserAgent = "terraform-provider-axiom/v1.0.4"
+	providerUserAgent = "terraform-provider-axiom/v1.1.0"
 )
 
 // Ensure the implementation satisfies the expected interfaces
