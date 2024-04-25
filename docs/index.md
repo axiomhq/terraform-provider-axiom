@@ -70,7 +70,6 @@ data "axiom_dataset" "test_dataset" {
 ### Required
 
 - `api_token` (String) The Axiom API token.
-- `org_id` (String) The Axiom organization ID.
 
 ### Optional
 
@@ -90,7 +89,6 @@ terraform {
 
 provider "axiom" {
   api_token = ""
-  org_id    = ""
   base_url  = "https://api.axiom.co"
 }
 

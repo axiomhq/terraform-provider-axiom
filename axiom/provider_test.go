@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	ax "github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
+
+	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 func TestAccAxiomResources_basic(t *testing.T) {
@@ -165,7 +166,6 @@ func testAccAxiomDatasetConfig_basic(orgID string) string {
 	return `
 	provider "axiom" {
 		api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-		org_id    = "` + orgID + `"
 		base_url  = "` + os.Getenv("AXIOM_URL") + `"
 	}
 	
@@ -229,7 +229,6 @@ func TestAccAxiomResources_data(t *testing.T) {
 				Config: `
 					provider "axiom" {
 						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-						org_id    = "` + os.Getenv("AXIOM_ORG_ID") + `"
 						base_url  = "` + os.Getenv("AXIOM_URL") + `"
 					}
 
