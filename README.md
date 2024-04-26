@@ -4,7 +4,7 @@ A Terraform provider that allows you to manage resources in [Axiom](https://axio
 
 Axiom lets you make the most of your event data without compromises: all your data, all the time, for all possible needs. Say goodbye to data sampling, waiting times, and hefty fees.
 
-📖 For more information, see the [documentation](https://registry.terraform.io/providers/axiomhq/axiom/latest/docs).
+📖 For more information, see the [documentation](https://axiom.co/docs/apps/terraform).
 
 🔧 To see the provider in action, check out the [example](example/main.tf).
 
