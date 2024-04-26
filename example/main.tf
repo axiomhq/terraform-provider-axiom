@@ -2,7 +2,7 @@ terraform {
   required_providers {
     axiom = {
       source  = "axiomhq/axiom"
-      version = "1.0.4"
+      version = "1.1.0"
     }
   }
 }
