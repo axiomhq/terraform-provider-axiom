@@ -116,6 +116,7 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 		NewMonitorDataSource,
 		NewNotifierDataSource,
 		NewUserDataSource,
+		NewTokenDataSource,
 	}
 }
 
@@ -126,5 +127,6 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewMonitorResource,
 		NewNotifierResource,
 		NewUserResource,
+		NewTokenResource,
 	}
 }

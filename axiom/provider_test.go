@@ -39,6 +39,12 @@ func TestAccAxiomResources_basic(t *testing.T) {
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
 					testAccCheckAxiomResourcesExist(client, "axiom_notifier.slack_test"),
 					resource.TestCheckResourceAttr("axiom_notifier.slack_test", "name", "slack_test"),
+					testAccCheckAxiomResourcesExist(client, "axiom_token.test_token"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "name", "test_token"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "description", "test_token"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "expires_at", "2024-06-29T13:02:54Z"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "dataset_capabilities.new-dataset.ingest.0", "create"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "org_capabilities.api_tokens.0", "read"),
 				),
 			},
 			{
@@ -51,6 +57,12 @@ func TestAccAxiomResources_basic(t *testing.T) {
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
 					testAccCheckAxiomResourcesExist(client, "axiom_notifier.slack_test"),
 					resource.TestCheckResourceAttr("axiom_notifier.slack_test", "name", "slack_test"),
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "name", "test_token"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "description", "test_token"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "expires_at", "2024-06-29T13:02:54Z"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "dataset_capabilities.new-dataset.ingest.0", "create"),
+					resource.TestCheckResourceAttr("axiom_token.test_token", "org_capabilities.api_tokens.0", "read"),
 				),
 			},
 		},
@@ -77,6 +89,8 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 				_, err = client.Datasets.Get(context.Background(), resource.Primary.ID)
 			case "axiom_monitor":
 				_, err = client.Monitors.Get(context.Background(), resource.Primary.ID)
+			case "axiom_token":
+				_, err = client.Tokens.Get(context.Background(), resource.Primary.ID)
 			}
 			datasetErr, ok := err.(ax.HTTPError)
 			if !ok {
@@ -106,6 +120,8 @@ func testAccCheckAxiomResourcesExist(client *ax.Client, resourceName string) res
 			_, err = client.Datasets.Get(context.Background(), rs.Primary.ID)
 		case "axiom_monitor":
 			_, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
+		case "axiom_token":
+			_, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
 		}
 		return err
 	}
@@ -127,6 +143,8 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 			actual, err = client.Datasets.Get(context.Background(), rs.Primary.ID)
 		case "axiom_monitor":
 			actual, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
+		case "axiom_token":
+			actual, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
 		}
 		if err != nil {
 			return fmt.Errorf("error fetching %s from Axiom: %s", rs.Type, err)
@@ -173,19 +191,19 @@ func testAccAxiomDatasetConfig_basic(orgID string) string {
 		name        = "terraform-provider-dataset"
 		description = "A test dataset"
 	}
-
+	
 	resource "axiom_notifier" "slack_test" {
 		name = "slack_test"
 		properties = {
 		  slack = {
 			slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
 		}
-	  }
+	 }
 	}
-
+	
 	resource "axiom_monitor" "test_monitor" {
 		depends_on       = [axiom_dataset.test, axiom_notifier.slack_test]
-
+	
 		name             = "test monitor"
 		description      = "test_monitor updated"
 		apl_query        = <<EOT
@@ -201,6 +219,21 @@ func testAccAxiomDatasetConfig_basic(orgID string) string {
 		]
 		alert_on_no_data = false
 		notify_by_group  = false
+	}
+
+	resource "axiom_token" "test_token" {
+		name = "test_token"
+		description = "test_token"
+		expires_at = "2024-06-29T13:02:54Z"
+		dataset_capabilities = {
+			"new-dataset" = {
+			  ingest = ["create"],
+			  query  = ["read"]
+			}
+		  }
+		org_capabilities = {
+		  api_tokens = ["read"]
+		}
 	}
 `
 }
