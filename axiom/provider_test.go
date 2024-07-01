@@ -30,7 +30,7 @@ func TestAccAxiomResources_basic(t *testing.T) {
 		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAxiomDatasetConfig_basic(os.Getenv("AXIOM_ORG_ID")),
+				Config: testAccAxiomDatasetConfig_basic(),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
@@ -48,7 +48,7 @@ func TestAccAxiomResources_basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccAxiomDatasetConfig_basic(""),
+				Config: testAccAxiomDatasetConfig_basic(),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
@@ -180,7 +180,7 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 	}
 }
 
-func testAccAxiomDatasetConfig_basic(orgID string) string {
+func testAccAxiomDatasetConfig_basic() string {
 	return `
 provider "axiom" {
   api_token = "` + os.Getenv("AXIOM_TOKEN") + `"

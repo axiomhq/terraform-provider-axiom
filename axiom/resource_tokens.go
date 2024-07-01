@@ -409,6 +409,10 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	datasetCapabilities, diags := extractDatasetCapabilities(ctx, plan)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
 
 	orgCapabilities, diags := extractOrgCapabilities(ctx, plan)
 	if diags.HasError() {
