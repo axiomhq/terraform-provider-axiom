@@ -182,60 +182,59 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 
 func testAccAxiomDatasetConfig_basic(orgID string) string {
 	return `
-	provider "axiom" {
-		api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
-		base_url  = "` + os.Getenv("AXIOM_URL") + `"
-	}
-	
-	resource "axiom_dataset" "test" {
-		name        = "terraform-provider-dataset"
-		description = "A test dataset"
-	}
-	
-	resource "axiom_notifier" "slack_test" {
-		name = "slack_test"
-		properties = {
-		  slack = {
-			slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
-		}
-	 }
-	}
-	
-	resource "axiom_monitor" "test_monitor" {
-		depends_on       = [axiom_dataset.test, axiom_notifier.slack_test]
-	
-		name             = "test monitor"
-		description      = "test_monitor updated"
-		apl_query        = <<EOT
+provider "axiom" {
+  api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+  base_url  = "` + os.Getenv("AXIOM_URL") + `"
+}
+
+resource "axiom_dataset" "test" {
+  name        = "terraform-provider-dataset"
+  description = "A test dataset"
+}
+
+resource "axiom_notifier" "slack_test" {
+  name = "slack_test"
+  properties = {
+    slack = {
+      slack_url = "https://hooks.slack.com/services/EXAMPLE/EXAMPLE/EXAMPLE"
+    }
+  }
+}
+
+resource "axiom_monitor" "test_monitor" {
+  depends_on = [axiom_dataset.test, axiom_notifier.slack_test]
+
+  name             = "test monitor"
+  description      = "test_monitor updated"
+  apl_query        = <<EOT
 			['terraform-provider-dataset']
 			| summarize count() by bin_auto(_time)
 			EOT
-		interval_minutes = 5
-		operator         = "Above"
-		range_minutes    = 5
-		threshold        = 1
-		notifier_ids = [
-			axiom_notifier.slack_test.id
-		]
-		alert_on_no_data = false
-		notify_by_group  = false
-	}
+  interval_minutes = 5
+  operator         = "Above"
+  range_minutes    = 5
+  threshold        = 1
+  notifier_ids = [
+    axiom_notifier.slack_test.id
+  ]
+  alert_on_no_data = false
+  notify_by_group  = false
+}
 
-	resource "axiom_token" "test_token" {
-		name = "test_token"
-		description = "test_token"
-		expires_at = "2024-06-29T13:02:54Z"
-		dataset_capabilities = {
-			"new-dataset" = {
-			  ingest = ["create"],
-			  query  = ["read"]
-			}
-		  }
-		org_capabilities = {
-		  api_tokens = ["read"]
-		}
-	}
-`
+resource "axiom_token" "test_token" {
+  name        = "test_token"
+  description = "test_token"
+  expires_at  = "2024-06-29T13:02:54Z"
+  dataset_capabilities = {
+    "new-dataset" = {
+      ingest = ["create"],
+      query  = ["read"]
+    }
+  }
+  org_capabilities = {
+    api_tokens = ["read"]
+  }
+}`
 }
 
 func TestAccAxiomResources_data(t *testing.T) {
