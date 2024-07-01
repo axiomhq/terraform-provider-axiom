@@ -65,3 +65,18 @@ resource "axiom_user" "test_user" {
   email = "test@abc.com"
   role  = "user"
 }
+
+
+resource "axiom_token" "test_token" {
+  name        = "Example terraform token"
+  description = "This is a test token created by Terraform."
+  dataset_capabilities = {
+    "new-dataset" = {
+      ingest = ["create"],
+      query  = ["read"]
+    }
+  }
+  org_capabilities = {
+    annotations = ["create", "read", "update", "delete"]
+  }
+}
