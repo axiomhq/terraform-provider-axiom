@@ -432,11 +432,11 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	token, err := r.client.Tokens.Create(ctx, axiom.CreateTokenRequest{
-		Name:                plan.Name.ValueString(),
-		Description:         plan.Description.ValueString(),
-		ExpiresAt:           tokenExpiry,
-		DatasetCapabilities: datasetCapabilities,
-		OrgCapabilities:     *orgCapabilities,
+		Name:                     plan.Name.ValueString(),
+		Description:              plan.Description.ValueString(),
+		ExpiresAt:                tokenExpiry,
+		DatasetCapabilities:      datasetCapabilities,
+		OrganisationCapabilities: *orgCapabilities,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create token, got error: %s", err))
@@ -512,7 +512,7 @@ func flattenToken(token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics)
 		Name:                types.StringValue(token.Name),
 		Description:         types.StringValue(token.Description),
 		DatasetCapabilities: dsCapabilities,
-		OrgCapabilities:     flattenOrgCapabilities(token.OrgCapabilities),
+		OrgCapabilities:     flattenOrgCapabilities(token.OrganisationCapabilities),
 	}
 
 	if !token.ExpiresAt.IsZero() {
@@ -532,7 +532,7 @@ func flattenCreateTokenResponse(token *axiom.CreateTokenResponse) (TokensResourc
 		Name:                types.StringValue(token.Name),
 		Description:         types.StringValue(token.Description),
 		DatasetCapabilities: dsCapabilities,
-		OrgCapabilities:     flattenOrgCapabilities(token.OrgCapabilities),
+		OrgCapabilities:     flattenOrgCapabilities(token.OrganisationCapabilities),
 		Token:               types.StringValue(token.Token),
 	}
 
@@ -542,21 +542,21 @@ func flattenCreateTokenResponse(token *axiom.CreateTokenResponse) (TokensResourc
 	return t, nil
 }
 
-func flattenOrgCapabilities(orgCapabilities axiom.OrgCapabilities) OrgCapabilities {
+func flattenOrgCapabilities(orgCapabilities axiom.OrganisationCapabilities) OrgCapabilities {
 	return OrgCapabilities{
-		Annotations:      flattenStringSlice(orgCapabilities.Annotations),
-		APITokens:        flattenStringSlice(orgCapabilities.APITokens),
-		Billing:          flattenStringSlice(orgCapabilities.Billing),
-		Dashboards:       flattenStringSlice(orgCapabilities.Dashboards),
-		Datasets:         flattenStringSlice(orgCapabilities.Datasets),
-		Endpoints:        flattenStringSlice(orgCapabilities.Endpoints),
-		Flows:            flattenStringSlice(orgCapabilities.Flows),
-		Integrations:     flattenStringSlice(orgCapabilities.Integrations),
-		Monitors:         flattenStringSlice(orgCapabilities.Monitors),
-		Notifiers:        flattenStringSlice(orgCapabilities.Notifiers),
-		Rbac:             flattenStringSlice(orgCapabilities.Rbac),
-		SharedAccessKeys: flattenStringSlice(orgCapabilities.SharedAccessKeys),
-		Users:            flattenStringSlice(orgCapabilities.Users),
+		Annotations:      flattenAxiomActionSlice(orgCapabilities.Annotations),
+		APITokens:        flattenAxiomActionSlice(orgCapabilities.APITokens),
+		Billing:          flattenAxiomActionSlice(orgCapabilities.Billing),
+		Dashboards:       flattenAxiomActionSlice(orgCapabilities.Dashboards),
+		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
+		Endpoints:        flattenAxiomActionSlice(orgCapabilities.Endpoints),
+		Flows:            flattenAxiomActionSlice(orgCapabilities.Flows),
+		Integrations:     flattenAxiomActionSlice(orgCapabilities.Integrations),
+		Monitors:         flattenAxiomActionSlice(orgCapabilities.Monitors),
+		Notifiers:        flattenAxiomActionSlice(orgCapabilities.Notifiers),
+		Rbac:             flattenAxiomActionSlice(orgCapabilities.RBAC),
+		SharedAccessKeys: flattenAxiomActionSlice(orgCapabilities.SharedAccessKeys),
+		Users:            flattenAxiomActionSlice(orgCapabilities.Users),
 	}
 }
 
@@ -571,10 +571,10 @@ func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[str
 
 	for dataset, capabilities := range datasetCapabilities {
 		dsCapabilities[dataset] = DatasetCapabilities{
-			Ingest:         flattenStringSlice(capabilities.Ingest),
-			Query:          flattenStringSlice(capabilities.Query),
-			StarredQueries: flattenStringSlice(capabilities.StarredQueries),
-			VirtualFields:  flattenStringSlice(capabilities.VirtualFields),
+			Ingest:         flattenAxiomActionSlice(capabilities.Ingest),
+			Query:          flattenAxiomActionSlice(capabilities.Query),
+			StarredQueries: flattenAxiomActionSlice(capabilities.StarredQueries),
+			VirtualFields:  flattenAxiomActionSlice(capabilities.VirtualFields),
 		}
 	}
 
@@ -604,25 +604,25 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 	for name, capabilities := range dsCapabilities {
 		dc := axiom.DatasetCapabilities{}
 
-		values, diags := typeStringSliceToStringSlice(ctx, capabilities.Ingest.Elements())
+		values, diags := typeAxiomActionSliceToStringSlice(ctx, capabilities.Ingest.Elements())
 		if diags.HasError() {
 			return nil, diags
 		}
 		dc.Ingest = values
 
-		values, diags = typeStringSliceToStringSlice(ctx, capabilities.Query.Elements())
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Query.Elements())
 		if diags.HasError() {
 			return nil, diags
 		}
 		dc.Query = values
 
-		values, diags = typeStringSliceToStringSlice(ctx, capabilities.StarredQueries.Elements())
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.StarredQueries.Elements())
 		if diags.HasError() {
 			return nil, diags
 		}
 		dc.StarredQueries = values
 
-		values, diags = typeStringSliceToStringSlice(ctx, capabilities.VirtualFields.Elements())
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.VirtualFields.Elements())
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -634,85 +634,145 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 	return datasetCapabilities, nil
 }
 
-func extractOrgCapabilities(ctx context.Context, plan TokensResourceModel) (*axiom.OrgCapabilities, diag.Diagnostics) {
-	orgCapabilities := &axiom.OrgCapabilities{}
-	values, diags := typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Annotations.Elements())
+func extractOrgCapabilities(ctx context.Context, plan TokensResourceModel) (*axiom.OrganisationCapabilities, diag.Diagnostics) {
+	orgCapabilities := &axiom.OrganisationCapabilities{}
+	values, diags := typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Annotations.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Annotations = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.APITokens.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.APITokens.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.APITokens = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Billing.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Billing.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Billing = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Dashboards.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Dashboards.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Dashboards = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Datasets.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Datasets.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Datasets = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Endpoints.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Endpoints.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Endpoints = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Flows.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Flows.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Flows = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Integrations.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Integrations.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Integrations = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Monitors.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Monitors.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Monitors = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Notifiers.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Notifiers.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Notifiers = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Rbac.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Rbac.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
-	orgCapabilities.Rbac = values
+	orgCapabilities.RBAC = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.SharedAccessKeys.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.SharedAccessKeys.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.SharedAccessKeys = values
 
-	values, diags = typeStringSliceToStringSlice(ctx, plan.OrgCapabilities.Users.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Users.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Users = values
 
 	return orgCapabilities, nil
+}
+
+func flattenAxiomActionSlice(values []axiom.Action) types.List {
+	if len(values) == 0 {
+		return types.ListNull(types.StringType)
+	}
+
+	listElements := make([]attr.Value, 0, len(values))
+	for _, value := range values {
+		columnElement := types.StringValue(value.String())
+		listElements = append(listElements, columnElement)
+	}
+
+	return types.ListValueMust(types.StringType, listElements)
+}
+
+func typeAxiomActionSliceToStringSlice(ctx context.Context, s []attr.Value) ([]axiom.Action, diag.Diagnostics) {
+	result := make([]axiom.Action, 0, len(s))
+	var diags diag.Diagnostics
+	for _, v := range s {
+		val, err := v.ToTerraformValue(ctx)
+		if err != nil {
+			diags.AddError("Failed to convert value to Terraform", err.Error())
+			continue
+		}
+		var str string
+		if err = val.As(&str); err != nil {
+			diags.AddError("Failed to convert value to Terraform", err.Error())
+			continue
+		}
+
+		action, err := axiomActionFromString(str)
+		if err != nil {
+			diags.AddError("failed to convert string to action", err.Error())
+			continue
+		}
+
+		result = append(result, action)
+	}
+	if diags.HasError() {
+		return nil, diags
+	}
+	return result, nil
+}
+
+func axiomActionFromString(value string) (axiom.Action, error) {
+	var action axiom.Action
+	switch value {
+	case Create:
+		action = axiom.ActionCreate
+	case Read:
+		action = axiom.ActionRead
+	case Update:
+		action = axiom.ActionUpdate
+	case Delete:
+		action = axiom.ActionDelete
+	default:
+		return action, fmt.Errorf("invalid action: %s", value)
+	}
+	return action, nil
 }

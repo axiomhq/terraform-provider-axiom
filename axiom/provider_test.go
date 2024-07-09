@@ -224,7 +224,7 @@ resource "axiom_monitor" "test_monitor" {
 resource "axiom_token" "test_token" {
   name        = "test_token"
   description = "test_token"
-  expires_at  = "2024-06-29T13:02:54Z"
+  expires_at  = "2027-06-29T13:02:54Z"
   dataset_capabilities = {
     "new-dataset" = {
       ingest = ["create"],
