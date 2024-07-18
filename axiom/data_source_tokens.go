@@ -72,7 +72,7 @@ func (d *TokenDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	token, diagnostics := flattenToken(apiToken)
+	token, diagnostics := flattenToken(ctx, apiToken)
 	if diagnostics.HasError() {
 		resp.Diagnostics.Append(diagnostics...)
 		return

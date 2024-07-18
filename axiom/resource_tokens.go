@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
@@ -46,13 +47,13 @@ type TokenResource struct {
 
 // TokensResourceModel describes the resource data model.
 type TokensResourceModel struct {
-	ID                  types.String    `tfsdk:"id"`
-	Name                types.String    `tfsdk:"name"`
-	Description         types.String    `tfsdk:"description"`
-	ExpiresAt           types.String    `tfsdk:"expires_at"`
-	DatasetCapabilities types.Map       `tfsdk:"dataset_capabilities"`
-	OrgCapabilities     OrgCapabilities `tfsdk:"org_capabilities"`
-	Token               types.String    `tfsdk:"token"`
+	ID                  types.String `tfsdk:"id"`
+	Name                types.String `tfsdk:"name"`
+	Description         types.String `tfsdk:"description"`
+	ExpiresAt           types.String `tfsdk:"expires_at"`
+	DatasetCapabilities types.Map    `tfsdk:"dataset_capabilities"`
+	OrgCapabilities     types.Object `tfsdk:"org_capabilities"`
+	Token               types.String `tfsdk:"token"`
 }
 
 type DatasetCapabilities struct {
@@ -85,6 +86,24 @@ type OrgCapabilities struct {
 	Rbac             types.List `tfsdk:"rbac"`
 	SharedAccessKeys types.List `tfsdk:"shared_access_keys"`
 	Users            types.List `tfsdk:"users"`
+}
+
+func (o OrgCapabilities) Types() map[string]attr.Type {
+	return map[string]attr.Type{
+		"annotations":        types.ListType{ElemType: types.StringType},
+		"api_tokens":         types.ListType{ElemType: types.StringType},
+		"billing":            types.ListType{ElemType: types.StringType},
+		"dashboards":         types.ListType{ElemType: types.StringType},
+		"datasets":           types.ListType{ElemType: types.StringType},
+		"endpoints":          types.ListType{ElemType: types.StringType},
+		"flows":              types.ListType{ElemType: types.StringType},
+		"integrations":       types.ListType{ElemType: types.StringType},
+		"monitors":           types.ListType{ElemType: types.StringType},
+		"notifiers":          types.ListType{ElemType: types.StringType},
+		"rbac":               types.ListType{ElemType: types.StringType},
+		"shared_access_keys": types.ListType{ElemType: types.StringType},
+		"users":              types.ListType{ElemType: types.StringType},
+	}
 }
 
 func (r *TokenResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -414,7 +433,7 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	orgCapabilities, diags := extractOrgCapabilities(ctx, plan)
+	orgCapabilities, diags := extractOrgCapabilities(ctx, plan.OrgCapabilities)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
@@ -443,7 +462,7 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	createTokenResponse, diagnostics := flattenCreateTokenResponse(token)
+	createTokenResponse, diagnostics := flattenCreateTokenResponse(ctx, token)
 	if diagnostics.HasError() {
 		resp.Diagnostics.Append(diagnostics...)
 		return
@@ -468,7 +487,7 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	token, diagnostics := flattenToken(apiToken)
+	token, diagnostics := flattenToken(ctx, apiToken)
 	if diagnostics.HasError() {
 		resp.Diagnostics.Append(diagnostics...)
 		return
@@ -501,8 +520,13 @@ func (r *TokenResource) ImportState(ctx context.Context, req resource.ImportStat
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func flattenToken(token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
+func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(context.Background(), token.DatasetCapabilities)
+	if diags.HasError() {
+		return TokensResourceModel{}, diags
+	}
+
+	orgCapabilities, diags := flattenOrgCapabilities(ctx, token.OrganisationCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
 	}
@@ -512,7 +536,7 @@ func flattenToken(token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics)
 		Name:                types.StringValue(token.Name),
 		Description:         types.StringValue(token.Description),
 		DatasetCapabilities: dsCapabilities,
-		OrgCapabilities:     flattenOrgCapabilities(token.OrganisationCapabilities),
+		OrgCapabilities:     orgCapabilities,
 	}
 
 	if !token.ExpiresAt.IsZero() {
@@ -521,18 +545,22 @@ func flattenToken(token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics)
 	return t, nil
 }
 
-func flattenCreateTokenResponse(token *axiom.CreateTokenResponse) (TokensResourceModel, diag.Diagnostics) {
+func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenResponse) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(context.Background(), token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
 	}
 
+	orgCapabilities, diags := flattenOrgCapabilities(ctx, token.OrganisationCapabilities)
+	if diags.HasError() {
+		return TokensResourceModel{}, diags
+	}
 	t := TokensResourceModel{
 		ID:                  types.StringValue(token.ID),
 		Name:                types.StringValue(token.Name),
 		Description:         types.StringValue(token.Description),
 		DatasetCapabilities: dsCapabilities,
-		OrgCapabilities:     flattenOrgCapabilities(token.OrganisationCapabilities),
+		OrgCapabilities:     orgCapabilities,
 		Token:               types.StringValue(token.Token),
 	}
 
@@ -542,8 +570,26 @@ func flattenCreateTokenResponse(token *axiom.CreateTokenResponse) (TokensResourc
 	return t, nil
 }
 
-func flattenOrgCapabilities(orgCapabilities axiom.OrganisationCapabilities) OrgCapabilities {
-	return OrgCapabilities{
+func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.OrganisationCapabilities) (types.Object, diag.Diagnostics) {
+	if allEmpty(
+		orgCapabilities.Annotations,
+		orgCapabilities.APITokens,
+		orgCapabilities.Billing,
+		orgCapabilities.Dashboards,
+		orgCapabilities.Datasets,
+		orgCapabilities.Endpoints,
+		orgCapabilities.Flows,
+		orgCapabilities.Integrations,
+		orgCapabilities.Monitors,
+		orgCapabilities.Notifiers,
+		orgCapabilities.RBAC,
+		orgCapabilities.SharedAccessKeys,
+		orgCapabilities.Users,
+	) {
+		return types.ObjectNull(OrgCapabilities{}.Types()), nil
+	}
+
+	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
 		Annotations:      flattenAxiomActionSlice(orgCapabilities.Annotations),
 		APITokens:        flattenAxiomActionSlice(orgCapabilities.APITokens),
 		Billing:          flattenAxiomActionSlice(orgCapabilities.Billing),
@@ -557,7 +603,7 @@ func flattenOrgCapabilities(orgCapabilities axiom.OrganisationCapabilities) OrgC
 		Rbac:             flattenAxiomActionSlice(orgCapabilities.RBAC),
 		SharedAccessKeys: flattenAxiomActionSlice(orgCapabilities.SharedAccessKeys),
 		Users:            flattenAxiomActionSlice(orgCapabilities.Users),
-	}
+	})
 }
 
 func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[string]axiom.DatasetCapabilities) (types.Map, diag.Diagnostics) {
@@ -634,81 +680,91 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 	return datasetCapabilities, nil
 }
 
-func extractOrgCapabilities(ctx context.Context, plan TokensResourceModel) (*axiom.OrganisationCapabilities, diag.Diagnostics) {
+func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.OrganisationCapabilities, diag.Diagnostics) {
 	orgCapabilities := &axiom.OrganisationCapabilities{}
-	values, diags := typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Annotations.Elements())
+	if orgCap.IsNull() || orgCap.IsUnknown() {
+		return orgCapabilities, nil
+	}
+	planCapabilties := &OrgCapabilities{}
+
+	diags := orgCap.As(context.Background(), planCapabilties, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	values, diags := typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Annotations.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Annotations = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.APITokens.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.APITokens.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.APITokens = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Billing.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Billing.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Billing = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Dashboards.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Dashboards.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Dashboards = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Datasets.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Datasets.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Datasets = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Endpoints.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Endpoints.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Endpoints = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Flows.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Flows.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Flows = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Integrations.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Integrations.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Integrations = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Monitors.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Monitors.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Monitors = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Notifiers.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Notifiers.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.Notifiers = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Rbac.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Rbac.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.RBAC = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.SharedAccessKeys.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.SharedAccessKeys.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 	orgCapabilities.SharedAccessKeys = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, plan.OrgCapabilities.Users.Elements())
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Users.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -775,4 +831,14 @@ func axiomActionFromString(value string) (axiom.Action, error) {
 		return action, fmt.Errorf("invalid action: %s", value)
 	}
 	return action, nil
+}
+
+func allEmpty(val ...[]axiom.Action) bool {
+	for _, v := range val {
+		if len(v) != 0 {
+			return false
+		}
+	}
+	return true
+
 }
