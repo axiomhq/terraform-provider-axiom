@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
@@ -180,9 +181,11 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 			return fmt.Errorf("property %s not found in Terraform state", tfKey)
 		}
 
-		actualValue, found := actualMap[apiKey]
-		if !found {
-			return fmt.Errorf("property %s not found in API response", apiKey)
+		// Use gjson to get the value using the dot notation path
+		actualValue := gjson.GetBytes(actualJSON, apiKey)
+
+		if !actualValue.Exists() {
+			return fmt.Errorf("property %s not found in API response: %s", apiKey, string(actualJSON))
 		}
 
 		if fmt.Sprintf("%v", actualValue) != stateValue {

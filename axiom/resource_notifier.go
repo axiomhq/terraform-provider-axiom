@@ -48,6 +48,7 @@ type NotifierProperties struct {
 	Pagerduty      *PagerDutyConfig      `tfsdk:"pagerduty"`
 	Slack          *SlackConfig          `tfsdk:"slack"`
 	Webhook        *WebhookConfig        `tfsdk:"webhook"`
+	CustomWebhook  *CustomWebhookConfig  `tfsdk:"custom_webhook"`
 }
 
 type SlackConfig struct {
@@ -60,7 +61,7 @@ type DiscordConfig struct {
 }
 
 type DiscordWebhookConfig struct {
-	DiscordWebhookURL types.String `tfsdk:"Discord_webhook_url"`
+	DiscordWebhookURL types.String `tfsdk:"discord_webhook_url"`
 }
 
 type EmailConfig struct {
@@ -79,6 +80,12 @@ type PagerDutyConfig struct {
 
 type WebhookConfig struct {
 	URL types.String `tfsdk:"url"`
+}
+
+type CustomWebhookConfig struct {
+	URL     types.String                  `tfsdk:"url"`
+	Headers map[types.String]types.String `tfsdk:"headers"`
+	Body    types.String                  `tfsdk:"body"`
 }
 
 func (r *NotifierResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -120,6 +127,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -143,6 +151,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -162,6 +171,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -182,6 +192,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -205,6 +216,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("email"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -228,6 +240,7 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("email"),
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("webhook"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
 							),
 						},
 					},
@@ -247,6 +260,27 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								path.MatchRelative().AtParent().AtName("email"),
 								path.MatchRelative().AtParent().AtName("opsgenie"),
 								path.MatchRelative().AtParent().AtName("pagerduty"),
+								path.MatchRelative().AtParent().AtName("custom_webhook"),
+							),
+						},
+					},
+					"custom_webhook": schema.SingleNestedAttribute{
+						Attributes: map[string]schema.Attribute{
+							"url": schema.StringAttribute{
+								MarkdownDescription: "The webhook URL",
+								Required:            true,
+							},
+						},
+						Optional: true,
+						Validators: []validator.Object{
+							objectvalidator.ExactlyOneOf(
+								path.MatchRelative().AtParent().AtName("slack"),
+								path.MatchRelative().AtParent().AtName("discord"),
+								path.MatchRelative().AtParent().AtName("discord_webhook"),
+								path.MatchRelative().AtParent().AtName("email"),
+								path.MatchRelative().AtParent().AtName("opsgenie"),
+								path.MatchRelative().AtParent().AtName("pagerduty"),
+								path.MatchRelative().AtParent().AtName("webhook"),
 							),
 						},
 					},
