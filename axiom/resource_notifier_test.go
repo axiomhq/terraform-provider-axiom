@@ -116,10 +116,10 @@ func TestNotifiers(t *testing.T) {
 						EOF`+`
 					} }`),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.url", "properties.customWebhook.url"),
-					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.headers.Authorization", "properties.customWebhook.headers.Authorization"),
-					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.headers.Content-Type", "properties.customWebhook.headers.Content-Type"),
-					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.body", "properties.customWebhook.body"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.url", "properties.customWebhook.URL"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.headers.Authorization", "properties.customWebhook.Headers.Authorization"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.headers.Content-Type", "properties.customWebhook.Headers.Content-Type"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.body", "properties.customWebhook.Body"),
 				),
 			},
 		},

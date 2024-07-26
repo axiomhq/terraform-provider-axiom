@@ -461,7 +461,7 @@ func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.No
 		if diags.HasError() {
 			return nil, diags
 		}
-		notifier.Properties.CustomWebhook = &axiom.CustomWebhookConfig{
+		notifier.Properties.CustomWebhook = &axiom.CustomWebhook{
 			URL:     plan.Properties.CustomWebhook.URL.ValueString(),
 			Headers: headers,
 			Body:    plan.Properties.CustomWebhook.Body.ValueString(),

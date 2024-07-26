@@ -1,6 +1,6 @@
 module terraform-provider-axiom-provider
 
-go 1.22.3
+go 1.22.5
 
 require (
 	github.com/axiomhq/axiom-go v0.20.0
