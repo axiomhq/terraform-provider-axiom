@@ -83,9 +83,9 @@ type WebhookConfig struct {
 }
 
 type CustomWebhookConfig struct {
-	URL     types.String                  `tfsdk:"url"`
-	Headers map[types.String]types.String `tfsdk:"headers"`
-	Body    types.String                  `tfsdk:"body"`
+	URL     types.String `tfsdk:"url"`
+	Headers types.Map    `tfsdk:"headers"`
+	Body    types.String `tfsdk:"body"`
 }
 
 func (r *NotifierResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -270,6 +270,16 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 								MarkdownDescription: "The webhook URL",
 								Required:            true,
 							},
+							"body": schema.StringAttribute{
+								MarkdownDescription: "The JSON body",
+								Required:            true,
+							},
+							"headers": schema.MapAttribute{
+								ElementType:         types.StringType,
+								MarkdownDescription: "Any headers associated with the request",
+								Optional:            true,
+								Sensitive:           true,
+							},
 						},
 						Optional: true,
 						Validators: []validator.Object{
@@ -445,6 +455,17 @@ func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.No
 		notifier.Properties.Webhook = &axiom.WebhookConfig{
 			URL: plan.Properties.Webhook.URL.ValueString(),
 		}
+	case plan.Properties.CustomWebhook != nil:
+		headers := map[string]string{}
+		diags := plan.Properties.CustomWebhook.Headers.ElementsAs(ctx, &headers, false)
+		if diags.HasError() {
+			return nil, diags
+		}
+		notifier.Properties.CustomWebhook = &axiom.CustomWebhookConfig{
+			URL:     plan.Properties.CustomWebhook.URL.ValueString(),
+			Headers: headers,
+			Body:    plan.Properties.CustomWebhook.Body.ValueString(),
+		}
 	}
 
 	return &notifier, diags
@@ -496,6 +517,19 @@ func buildNotifierProperties(properties axiom.NotifierProperties) *NotifierPrope
 	if properties.Webhook != nil {
 		notifierProperties.Webhook = &WebhookConfig{
 			URL: types.StringValue(properties.Webhook.URL),
+		}
+	}
+	if properties.CustomWebhook != nil {
+		headerValues := map[string]attr.Value{}
+		for k, v := range properties.CustomWebhook.Headers {
+			headerValues[k] = types.StringValue(v)
+		}
+		headers := types.MapValueMust(types.StringType, headerValues)
+
+		notifierProperties.CustomWebhook = &CustomWebhookConfig{
+			URL:     types.StringValue(properties.CustomWebhook.URL),
+			Headers: headers,
+			Body:    types.StringValue(properties.CustomWebhook.Body),
 		}
 	}
 	return &notifierProperties

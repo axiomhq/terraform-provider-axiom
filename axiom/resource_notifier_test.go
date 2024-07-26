@@ -98,7 +98,22 @@ func TestNotifiers(t *testing.T) {
 							"Authorization" = "Bearer token"
 							"Content-Type" = "application/json"
 						}
-						body = "{\"message\": \"test\"}"
+						body = `+`<<EOF
+							{
+								"action": "{{.Action}}",
+								"event": {
+								"monitorID": "{{.MonitorID}}",
+								"body": "{{.Body}}",
+								"description": "{{.Description}}",
+								"queryEndTime": "{{.QueryEndTime}}",
+								"queryStartTime": "{{.QueryStartTime}}",
+								"timestamp": "{{.Timestamp}}",
+								"title": "{{.Title}}",
+								"value": {{.Value}},
+								"matchedEvent": {{jsonObject .MatchedEvent}}
+								}
+							}
+						EOF`+`
 					} }`),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_notifier.custom_webhook", "properties.custom_webhook.url", "properties.customWebhook.url"),
