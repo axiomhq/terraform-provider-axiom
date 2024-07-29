@@ -69,6 +69,8 @@ resource "axiom_monitor" "test_monitor_match_event" {
   apl_query        = "['test_dataset']"
   interval_minutes = 5
   range_minutes    = 5
+  disabled         = true
+  second_delay     = 120
   notifier_ids = [
     axiom_notifier.test_slack_notifier.id
   ]
