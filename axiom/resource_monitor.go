@@ -50,6 +50,8 @@ type MonitorResourceModel struct {
 	RangeMinutes    types.Int64   `tfsdk:"range_minutes"`
 	Threshold       types.Float64 `tfsdk:"threshold"`
 	Resolvable      types.Bool    `tfsdk:"resolvable"`
+	Disabled        types.Bool    `tfsdk:"disabled"`
+	SecondDelay     types.Int64   `tfsdk:"second_delay"`
 }
 
 func (r *MonitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -280,6 +282,8 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		Range:         time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
 		Threshold:     plan.Threshold.ValueFloat64(),
 		Resolvable:    plan.Resolvable.ValueBool(),
+		Disabled:      plan.Disabled.ValueBool(),
+		SecondDelay:   int(plan.SecondDelay.ValueInt64()),
 	}, nil
 }
 
@@ -302,5 +306,7 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		RangeMinutes:    types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:       types.Float64Value(monitor.Threshold),
 		Resolvable:      types.BoolValue(monitor.Resolvable),
+		Disabled:        types.BoolValue(monitor.Disabled),
+		SecondDelay:     types.Int64Value(int64(monitor.SecondDelay)),
 	}
 }

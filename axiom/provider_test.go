@@ -249,6 +249,8 @@ resource "axiom_monitor" "test_monitor_match_event" {
 	operator         = "Above"
 	range_minutes    = 5
 	threshold        = 1
+	disabled         = false
+	second_delay     = 100
 	notifier_ids = [
 	  axiom_notifier.slack_test.id
 	]
