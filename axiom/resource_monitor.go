@@ -285,13 +285,19 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 
 func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 	var disabledUntil types.String
+	var description types.String
+
 	if !monitor.DisabledUntil.IsZero() {
 		disabledUntil = types.StringValue(monitor.DisabledUntil.Format(time.RFC3339))
+	}
+
+	if monitor.Description != "" {
+		description = types.StringValue(monitor.Description)
 	}
 	return MonitorResourceModel{
 		ID:              types.StringValue(monitor.ID),
 		Name:            types.StringValue(monitor.Name),
-		Description:     types.StringValue(monitor.Description),
+		Description:     description,
 		AlertOnNoData:   types.BoolValue(monitor.AlertOnNoData),
 		NotifyByGroup:   types.BoolValue(monitor.NotifyByGroup),
 		APLQuery:        types.StringValue(monitor.APLQuery),
