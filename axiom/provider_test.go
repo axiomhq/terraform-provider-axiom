@@ -187,7 +187,7 @@ resource "axiom_dataset" "test" {
 }
 
 resource "axiom_dataset" "test_without_description" {
-  name        = "terraform-provider-dataset-without-description"
+  name = "terraform-provider-dataset-without-description"
 }
 
 resource "axiom_notifier" "slack_test" {
