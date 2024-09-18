@@ -644,6 +644,7 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 	if allEmpty(
 		orgCapabilities.Annotations,
 		orgCapabilities.APITokens,
+		orgCapabilities.AuditLog,
 		orgCapabilities.Billing,
 		orgCapabilities.Dashboards,
 		orgCapabilities.Datasets,
@@ -662,6 +663,7 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
 		Annotations:      flattenAxiomActionSlice(orgCapabilities.Annotations),
 		APITokens:        flattenAxiomActionSlice(orgCapabilities.APITokens),
+		Auditlog:         flattenAxiomActionSlice(orgCapabilities.AuditLog),
 		Billing:          flattenAxiomActionSlice(orgCapabilities.Billing),
 		Dashboards:       flattenAxiomActionSlice(orgCapabilities.Dashboards),
 		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
@@ -691,6 +693,9 @@ func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[str
 			Query:          flattenAxiomActionSlice(capabilities.Query),
 			StarredQueries: flattenAxiomActionSlice(capabilities.StarredQueries),
 			VirtualFields:  flattenAxiomActionSlice(capabilities.VirtualFields),
+			Data:           flattenAxiomActionSlice(capabilities.Data),
+			Trim:           flattenAxiomActionSlice(capabilities.Trim),
+			Vacuum:         flattenAxiomActionSlice(capabilities.Vacuum),
 		}
 	}
 
@@ -744,6 +749,24 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 		}
 		dc.VirtualFields = values
 
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Data.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Data = values
+
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Trim.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Trim = values
+
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Vacuum.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Vacuum = values
+
 		datasetCapabilities[name] = dc
 	}
 
@@ -773,6 +796,12 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 		return nil, diags
 	}
 	orgCapabilities.APITokens = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Auditlog.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.AuditLog = values
 
 	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Billing.Elements())
 	if diags.HasError() {
