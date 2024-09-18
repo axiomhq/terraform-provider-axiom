@@ -61,6 +61,9 @@ type DatasetCapabilities struct {
 	Query          types.List `tfsdk:"query"`
 	StarredQueries types.List `tfsdk:"starred_queries"`
 	VirtualFields  types.List `tfsdk:"virtual_fields"`
+	Data           types.List `tfsdk:"data"`
+	Trim           types.List `tfsdk:"trim"`
+	Vacuum         types.List `tfsdk:"vacuum"`
 }
 
 func (m DatasetCapabilities) Types() map[string]attr.Type {
@@ -69,12 +72,16 @@ func (m DatasetCapabilities) Types() map[string]attr.Type {
 		"query":           types.ListType{ElemType: types.StringType},
 		"starred_queries": types.ListType{ElemType: types.StringType},
 		"virtual_fields":  types.ListType{ElemType: types.StringType},
+		"data":            types.ListType{ElemType: types.StringType},
+		"trim":            types.ListType{ElemType: types.StringType},
+		"vacuum":          types.ListType{ElemType: types.StringType},
 	}
 }
 
 type OrgCapabilities struct {
 	Annotations      types.List `tfsdk:"annotations"`
 	APITokens        types.List `tfsdk:"api_tokens"`
+	Auditlog         types.List `tfsdk:"audit_log"`
 	Billing          types.List `tfsdk:"billing"`
 	Dashboards       types.List `tfsdk:"dashboards"`
 	Datasets         types.List `tfsdk:"datasets"`
@@ -92,6 +99,7 @@ func (o OrgCapabilities) Types() map[string]attr.Type {
 	return map[string]attr.Type{
 		"annotations":        types.ListType{ElemType: types.StringType},
 		"api_tokens":         types.ListType{ElemType: types.StringType},
+		"audit_log":          types.ListType{ElemType: types.StringType},
 		"billing":            types.ListType{ElemType: types.StringType},
 		"dashboards":         types.ListType{ElemType: types.StringType},
 		"datasets":           types.ListType{ElemType: types.StringType},
@@ -210,6 +218,45 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listplanmodifier.RequiresReplace(),
 							},
 						},
+						"data": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to manage the data in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Delete),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
+						"trim": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to trim the data in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Update),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
+						"vacuum": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to vacuum the fields in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Update),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
 					},
 				},
 			},
@@ -237,6 +284,19 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
+							),
+						},
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.RequiresReplace(),
+						},
+					},
+					"audit_log": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+						Description: "Ability to read the audit log",
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(
+								stringvalidator.OneOf(Read),
 							),
 						},
 						PlanModifiers: []planmodifier.List{
