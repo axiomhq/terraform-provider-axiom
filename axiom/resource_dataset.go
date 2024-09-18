@@ -164,9 +164,15 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
+	var description types.String
+
+	if dataset.Description != "" {
+		description = types.StringValue(dataset.Description)
+	}
+
 	return DatasetResourceModel{
 		Name:        types.StringValue(dataset.Name),
-		Description: types.StringValue(dataset.Description),
+		Description: description,
 		ID:          types.StringValue(dataset.ID),
 	}
 }

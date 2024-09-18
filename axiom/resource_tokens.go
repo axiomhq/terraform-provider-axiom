@@ -521,7 +521,7 @@ func (r *TokenResource) ImportState(ctx context.Context, req resource.ImportStat
 }
 
 func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
-	dsCapabilities, diags := flattenDatasetCapabilities(context.Background(), token.DatasetCapabilities)
+	dsCapabilities, diags := flattenDatasetCapabilities(ctx, token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
 	}
@@ -531,10 +531,15 @@ func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceMod
 		return TokensResourceModel{}, diags
 	}
 
+	var description types.String
+	if token.Description != "" {
+		description = types.StringValue(token.Description)
+	}
+
 	t := TokensResourceModel{
 		ID:                  types.StringValue(token.ID),
 		Name:                types.StringValue(token.Name),
-		Description:         types.StringValue(token.Description),
+		Description:         description,
 		DatasetCapabilities: dsCapabilities,
 		OrgCapabilities:     orgCapabilities,
 	}
@@ -555,10 +560,15 @@ func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenRes
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
 	}
+
+	var description types.String
+	if token.Description != "" {
+		description = types.StringValue(token.Description)
+	}
 	t := TokensResourceModel{
 		ID:                  types.StringValue(token.ID),
 		Name:                types.StringValue(token.Name),
-		Description:         types.StringValue(token.Description),
+		Description:         description,
 		DatasetCapabilities: dsCapabilities,
 		OrgCapabilities:     orgCapabilities,
 		Token:               types.StringValue(token.Token),
