@@ -34,37 +34,16 @@ func TestAccAxiomResources_basic(t *testing.T) {
 				Config: testAccAxiomDatasetConfig_basic(),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_without_description"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
+					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor_without_description"),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
 					testAccCheckAxiomResourcesExist(client, "axiom_notifier.slack_test"),
 					resource.TestCheckResourceAttr("axiom_notifier.slack_test", "name", "slack_test"),
 					testAccCheckAxiomResourcesExist(client, "axiom_token.test_token"),
-					resource.TestCheckResourceAttr("axiom_token.test_token", "name", "test_token"),
-					resource.TestCheckResourceAttr("axiom_token.test_token", "description", "test_token"),
-					resource.TestCheckResourceAttr("axiom_token.test_token", "expires_at", "2027-06-29T13:02:54Z"),
-					resource.TestCheckResourceAttr("axiom_token.test_token", "dataset_capabilities.new-dataset.ingest.0", "create"),
-					resource.TestCheckResourceAttr("axiom_token.test_token", "org_capabilities.api_tokens.0", "read"),
-					testAccCheckAxiomResourcesExist(client, "axiom_token.dataset_token"),
-					resource.TestCheckResourceAttr("axiom_token.dataset_token", "name", "dataset only token"),
-					resource.TestCheckResourceAttr("axiom_token.dataset_token", "description", "Can only access a single dataset"),
-					resource.TestCheckResourceAttr("axiom_token.dataset_token", "expires_at", "2027-06-29T13:02:54Z"),
-					resource.TestCheckResourceAttr("axiom_token.dataset_token", "dataset_capabilities.new-dataset.ingest.0", "create"),
-					resource.TestCheckResourceAttr("axiom_token.dataset_token", "dataset_capabilities.new-dataset.query.0", "read"),
-				),
-			},
-			{
-				Config: testAccAxiomDatasetConfig_basic(),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
-					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
-					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
-					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
-					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
-					testAccCheckAxiomResourcesExist(client, "axiom_notifier.slack_test"),
-					resource.TestCheckResourceAttr("axiom_notifier.slack_test", "name", "slack_test"),
-					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test"),
+					testAccCheckAxiomResourcesExist(client, "axiom_token.test_token_without_description"),
 					resource.TestCheckResourceAttr("axiom_token.test_token", "name", "test_token"),
 					resource.TestCheckResourceAttr("axiom_token.test_token", "description", "test_token"),
 					resource.TestCheckResourceAttr("axiom_token.test_token", "expires_at", "2027-06-29T13:02:54Z"),
@@ -207,6 +186,10 @@ resource "axiom_dataset" "test" {
   description = "A test dataset"
 }
 
+resource "axiom_dataset" "test_without_description" {
+  name = "terraform-provider-dataset-without-description"
+}
+
 resource "axiom_notifier" "slack_test" {
   name = "slack_test"
   properties = {
@@ -221,6 +204,25 @@ resource "axiom_monitor" "test_monitor" {
 
   name             = "test monitor"
   description      = "test_monitor updated"
+  apl_query        = <<EOT
+			['terraform-provider-dataset']
+			| summarize count() by bin_auto(_time)
+			EOT
+  interval_minutes = 5
+  operator         = "Above"
+  range_minutes    = 5
+  threshold        = 1
+  notifier_ids = [
+    axiom_notifier.slack_test.id
+  ]
+  alert_on_no_data = false
+  notify_by_group  = false
+}
+
+resource "axiom_monitor" "test_monitor_without_description" {
+  depends_on = [axiom_dataset.test, axiom_notifier.slack_test]
+
+  name             = "test monitor without description"
   apl_query        = <<EOT
 			['terraform-provider-dataset']
 			| summarize count() by bin_auto(_time)
@@ -259,6 +261,20 @@ resource "axiom_monitor" "test_monitor_match_event" {
 resource "axiom_token" "test_token" {
   name        = "test_token"
   description = "test_token"
+  expires_at  = "2027-06-29T13:02:54Z"
+  dataset_capabilities = {
+    "new-dataset" = {
+      ingest = ["create"],
+      query  = ["read"]
+    }
+  }
+  org_capabilities = {
+    api_tokens = ["read"]
+  }
+}
+
+resource "axiom_token" "test_token_without_description" {
+  name        = "test_token_without_description"
   expires_at  = "2027-06-29T13:02:54Z"
   dataset_capabilities = {
     "new-dataset" = {
