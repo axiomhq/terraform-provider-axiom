@@ -3,7 +3,7 @@ module terraform-provider-axiom-provider
 go 1.22.5
 
 require (
-	github.com/axiomhq/axiom-go v0.21.1-0.20240918131928-0f4facf1cf54
+	github.com/axiomhq/axiom-go v0.21.1
 	github.com/hashicorp/terraform-plugin-docs v0.19.4
 	github.com/hashicorp/terraform-plugin-framework v1.10.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.13.0
