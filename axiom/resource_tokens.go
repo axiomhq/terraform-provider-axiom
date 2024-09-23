@@ -61,6 +61,9 @@ type DatasetCapabilities struct {
 	Query          types.List `tfsdk:"query"`
 	StarredQueries types.List `tfsdk:"starred_queries"`
 	VirtualFields  types.List `tfsdk:"virtual_fields"`
+	Data           types.List `tfsdk:"data"`
+	Trim           types.List `tfsdk:"trim"`
+	Vacuum         types.List `tfsdk:"vacuum"`
 }
 
 func (m DatasetCapabilities) Types() map[string]attr.Type {
@@ -69,12 +72,16 @@ func (m DatasetCapabilities) Types() map[string]attr.Type {
 		"query":           types.ListType{ElemType: types.StringType},
 		"starred_queries": types.ListType{ElemType: types.StringType},
 		"virtual_fields":  types.ListType{ElemType: types.StringType},
+		"data":            types.ListType{ElemType: types.StringType},
+		"trim":            types.ListType{ElemType: types.StringType},
+		"vacuum":          types.ListType{ElemType: types.StringType},
 	}
 }
 
 type OrgCapabilities struct {
 	Annotations      types.List `tfsdk:"annotations"`
 	APITokens        types.List `tfsdk:"api_tokens"`
+	Auditlog         types.List `tfsdk:"audit_log"`
 	Billing          types.List `tfsdk:"billing"`
 	Dashboards       types.List `tfsdk:"dashboards"`
 	Datasets         types.List `tfsdk:"datasets"`
@@ -92,6 +99,7 @@ func (o OrgCapabilities) Types() map[string]attr.Type {
 	return map[string]attr.Type{
 		"annotations":        types.ListType{ElemType: types.StringType},
 		"api_tokens":         types.ListType{ElemType: types.StringType},
+		"audit_log":          types.ListType{ElemType: types.StringType},
 		"billing":            types.ListType{ElemType: types.StringType},
 		"dashboards":         types.ListType{ElemType: types.StringType},
 		"datasets":           types.ListType{ElemType: types.StringType},
@@ -210,6 +218,45 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listplanmodifier.RequiresReplace(),
 							},
 						},
+						"data": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to manage the data in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Delete),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
+						"trim": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to trim the data in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Update),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
+						"vacuum": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "Ability to vacuum the fields in a dataset",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(
+									stringvalidator.OneOf(Update),
+								),
+							},
+							PlanModifiers: []planmodifier.List{
+								listplanmodifier.RequiresReplace(),
+							},
+						},
 					},
 				},
 			},
@@ -237,6 +284,19 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
+							),
+						},
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.RequiresReplace(),
+						},
+					},
+					"audit_log": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+						Description: "Ability to read the audit log",
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(
+								stringvalidator.OneOf(Read),
 							),
 						},
 						PlanModifiers: []planmodifier.List{
@@ -584,6 +644,7 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 	if allEmpty(
 		orgCapabilities.Annotations,
 		orgCapabilities.APITokens,
+		orgCapabilities.AuditLog,
 		orgCapabilities.Billing,
 		orgCapabilities.Dashboards,
 		orgCapabilities.Datasets,
@@ -602,6 +663,7 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
 		Annotations:      flattenAxiomActionSlice(orgCapabilities.Annotations),
 		APITokens:        flattenAxiomActionSlice(orgCapabilities.APITokens),
+		Auditlog:         flattenAxiomActionSlice(orgCapabilities.AuditLog),
 		Billing:          flattenAxiomActionSlice(orgCapabilities.Billing),
 		Dashboards:       flattenAxiomActionSlice(orgCapabilities.Dashboards),
 		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
@@ -631,6 +693,9 @@ func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[str
 			Query:          flattenAxiomActionSlice(capabilities.Query),
 			StarredQueries: flattenAxiomActionSlice(capabilities.StarredQueries),
 			VirtualFields:  flattenAxiomActionSlice(capabilities.VirtualFields),
+			Data:           flattenAxiomActionSlice(capabilities.Data),
+			Trim:           flattenAxiomActionSlice(capabilities.Trim),
+			Vacuum:         flattenAxiomActionSlice(capabilities.Vacuum),
 		}
 	}
 
@@ -684,6 +749,24 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 		}
 		dc.VirtualFields = values
 
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Data.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Data = values
+
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Trim.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Trim = values
+
+		values, diags = typeAxiomActionSliceToStringSlice(ctx, capabilities.Vacuum.Elements())
+		if diags.HasError() {
+			return nil, diags
+		}
+		dc.Vacuum = values
+
 		datasetCapabilities[name] = dc
 	}
 
@@ -713,6 +796,12 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 		return nil, diags
 	}
 	orgCapabilities.APITokens = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Auditlog.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.AuditLog = values
 
 	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Billing.Elements())
 	if diags.HasError() {
