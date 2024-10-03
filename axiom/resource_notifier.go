@@ -228,7 +228,8 @@ func (r *NotifierResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 							},
 							"token": schema.StringAttribute{
 								MarkdownDescription: "The pager duty token",
-								Required:            true,
+								Optional:            true,
+								DeprecationMessage:  "token is deprecated, and is not used",
 							},
 						},
 						Optional: true,
