@@ -37,6 +37,9 @@ func TestAccAxiomResources_basic(t *testing.T) {
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_without_description"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.test", "name", "VF"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.test", "description", "my virtual field"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.apl", "apl", "a * b"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor_without_description"),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
@@ -184,6 +187,13 @@ provider "axiom" {
 resource "axiom_dataset" "test" {
   name        = "terraform-provider-dataset"
   description = "A test dataset"
+}
+
+resource "axiom_virtual_field" "test" {
+  name        = "VF"
+  description = "my virtual field"
+  apl = "a * b"
+  dataset = "terraform-provider-dataset"
 }
 
 resource "axiom_dataset" "test_without_description" {
