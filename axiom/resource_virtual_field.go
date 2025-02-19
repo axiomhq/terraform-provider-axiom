@@ -42,7 +42,7 @@ type VirtualFieldResourceModel struct {
 }
 
 func (r *VirtualFieldResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_vfield"
+	resp.TypeName = req.ProviderTypeName + "_virtual_field"
 }
 
 func (r *VirtualFieldResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
