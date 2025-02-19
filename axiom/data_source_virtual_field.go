@@ -43,7 +43,7 @@ func (d *VirtualFieldDataSource) Configure(_ context.Context, req datasource.Con
 }
 
 func (d *VirtualFieldDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_vfield"
+	resp.TypeName = req.ProviderTypeName + "_virtual_field"
 }
 
 func (d *VirtualFieldDataSource) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
