@@ -37,19 +37,27 @@ type MonitorResource struct {
 
 // MonitorResourceModel describes the resource data model.
 type MonitorResourceModel struct {
-	Name            types.String  `tfsdk:"name"`
-	Description     types.String  `tfsdk:"description"`
-	ID              types.String  `tfsdk:"id"`
-	AlertOnNoData   types.Bool    `tfsdk:"alert_on_no_data"`
-	NotifyByGroup   types.Bool    `tfsdk:"notify_by_group"`
-	APLQuery        types.String  `tfsdk:"apl_query"`
-	DisabledUntil   types.String  `tfsdk:"disabled_until"`
-	IntervalMinutes types.Int64   `tfsdk:"interval_minutes"`
-	NotifierIds     types.List    `tfsdk:"notifier_ids"`
-	Operator        types.String  `tfsdk:"operator"`
-	RangeMinutes    types.Int64   `tfsdk:"range_minutes"`
-	Threshold       types.Float64 `tfsdk:"threshold"`
-	Resolvable      types.Bool    `tfsdk:"resolvable"`
+	Name                         types.String  `tfsdk:"name"`
+	Description                  types.String  `tfsdk:"description"`
+	ID                           types.String  `tfsdk:"id"`
+	AlertOnNoData                types.Bool    `tfsdk:"alert_on_no_data"`
+	NotifyByGroup                types.Bool    `tfsdk:"notify_by_group"`
+	APLQuery                     types.String  `tfsdk:"apl_query"`
+	DisabledUntil                types.String  `tfsdk:"disabled_until"`
+	IntervalMinutes              types.Int64   `tfsdk:"interval_minutes"`
+	NotifierIds                  types.List    `tfsdk:"notifier_ids"`
+	Operator                     types.String  `tfsdk:"operator"`
+	RangeMinutes                 types.Int64   `tfsdk:"range_minutes"`
+	Threshold                    types.Float64 `tfsdk:"threshold"`
+	Resolvable                   types.Bool    `tfsdk:"resolvable"`
+	SecondDelay                  types.Int64   `tfsdk:"second_delay"`
+	NotifyEveryRun               types.Bool    `tfsdk:"notify_every_run"`
+	SkipResolved                 types.Bool    `tfsdk:"skip_resolved"`
+	Tolerance                    types.Float64 `tfsdk:"tolerance"`
+	TriggerFromNRuns             types.Int64   `tfsdk:"trigger_from_n_runs"`
+	TriggerAfterNPositiveResults types.Int64   `tfsdk:"trigger_after_n_positive_results"`
+	CompareDays                  types.Int64   `tfsdk:"compare_days"`
+	Type                         types.String  `tfsdk:"type"`
 }
 
 func (r *MonitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -129,6 +137,46 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional: true,
 				Default:  booldefault.StaticBool(false),
 				Computed: true,
+			},
+			"second_delay": schema.Int64Attribute{
+				MarkdownDescription: "The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)",
+				Optional:            true,
+			},
+			"notify_every_run": schema.BoolAttribute{
+				MarkdownDescription: "Indicates whether to send notifications on every trigger",
+				Optional:            true,
+			},
+			"skip_resolved": schema.BoolAttribute{
+				MarkdownDescription: "Specifies whether to skip resolved alerts",
+				Optional:            true,
+			},
+			"created_by": schema.StringAttribute{
+				MarkdownDescription: "The ID of the user who created the monitor",
+				Computed:            true,
+			},
+			"created_at": schema.StringAttribute{
+				MarkdownDescription: "The timestamp when the monitor was created",
+				Computed:            true,
+			},
+			"tolerance": schema.Float64Attribute{
+				MarkdownDescription: "The tolerance percentage for anomaly detection",
+				Optional:            true,
+			},
+			"trigger_from_n_runs": schema.Int64Attribute{
+				MarkdownDescription: "The number of consecutive check runs that must trigger before triggering an alert",
+				Optional:            true,
+			},
+			"trigger_after_n_positive_results": schema.Int64Attribute{
+				MarkdownDescription: "The number of positive results needed before triggering",
+				Optional:            true,
+			},
+			"compare_days": schema.Int64Attribute{
+				MarkdownDescription: "The number of days to compare for anomaly detection",
+				Optional:            true,
+			},
+			"type": schema.StringAttribute{
+				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'",
+				Required:            true,
 			},
 		},
 	}
@@ -267,19 +315,39 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		operator = axiom.AboveOrEqual
 	}
 
+	var monitorType axiom.MonitorType
+	switch plan.Type.ValueString() {
+	case axiom.MonitorTypeThreshold.String():
+		monitorType = axiom.MonitorTypeThreshold
+	case axiom.MonitorTypeMatchEvent.String():
+		monitorType = axiom.MonitorTypeMatchEvent
+	case axiom.MonitorTypeAnonalyDetection.String():
+		monitorType = axiom.MonitorTypeAnonalyDetection
+	default:
+		monitorType = axiom.MonitorTypeThreshold
+	}
+
 	return &axiom.Monitor{
-		Name:          plan.Name.ValueString(),
-		AlertOnNoData: plan.AlertOnNoData.ValueBool(),
-		NotifyByGroup: plan.NotifyByGroup.ValueBool(),
-		APLQuery:      plan.APLQuery.ValueString(),
-		Description:   plan.Description.ValueString(),
-		DisabledUntil: disabledUntil,
-		Interval:      time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
-		NotifierIDs:   notifierIds,
-		Operator:      operator,
-		Range:         time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
-		Threshold:     plan.Threshold.ValueFloat64(),
-		Resolvable:    plan.Resolvable.ValueBool(),
+		Name:                         plan.Name.ValueString(),
+		AlertOnNoData:                plan.AlertOnNoData.ValueBool(),
+		NotifyByGroup:                plan.NotifyByGroup.ValueBool(),
+		APLQuery:                     plan.APLQuery.ValueString(),
+		Description:                  plan.Description.ValueString(),
+		DisabledUntil:                disabledUntil,
+		Interval:                     time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
+		NotifierIDs:                  notifierIds,
+		Operator:                     operator,
+		Range:                        time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
+		Threshold:                    plan.Threshold.ValueFloat64(),
+		Resolvable:                   plan.Resolvable.ValueBool(),
+		SecondDelay:                  time.Duration(plan.SecondDelay.ValueInt64()) * time.Second,
+		NotifyEveryRun:               plan.NotifyEveryRun.ValueBool(),
+		SkipResolved:                 plan.SkipResolved.ValueBool(),
+		Tolerance:                    plan.Tolerance.ValueFloat64(),
+		TriggerFromNRuns:             plan.TriggerFromNRuns.ValueInt64(),
+		TriggerAfterNPositiveResults: plan.TriggerAfterNPositiveResults.ValueInt64(),
+		CompareDays:                  plan.CompareDays.ValueInt64(),
+		Type:                         monitorType,
 	}, nil
 }
 
@@ -295,18 +363,26 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		description = types.StringValue(monitor.Description)
 	}
 	return MonitorResourceModel{
-		ID:              types.StringValue(monitor.ID),
-		Name:            types.StringValue(monitor.Name),
-		Description:     description,
-		AlertOnNoData:   types.BoolValue(monitor.AlertOnNoData),
-		NotifyByGroup:   types.BoolValue(monitor.NotifyByGroup),
-		APLQuery:        types.StringValue(monitor.APLQuery),
-		DisabledUntil:   disabledUntil,
-		IntervalMinutes: types.Int64Value(int64(monitor.Interval.Minutes())),
-		NotifierIds:     flattenStringSlice(monitor.NotifierIDs),
-		Operator:        types.StringValue(monitor.Operator.String()),
-		RangeMinutes:    types.Int64Value(int64(monitor.Range.Minutes())),
-		Threshold:       types.Float64Value(monitor.Threshold),
-		Resolvable:      types.BoolValue(monitor.Resolvable),
+		ID:                           types.StringValue(monitor.ID),
+		Name:                         types.StringValue(monitor.Name),
+		Description:                  description,
+		AlertOnNoData:                types.BoolValue(monitor.AlertOnNoData),
+		NotifyByGroup:                types.BoolValue(monitor.NotifyByGroup),
+		APLQuery:                     types.StringValue(monitor.APLQuery),
+		DisabledUntil:                disabledUntil,
+		IntervalMinutes:              types.Int64Value(int64(monitor.Interval.Minutes())),
+		NotifierIds:                  flattenStringSlice(monitor.NotifierIDs),
+		Operator:                     types.StringValue(monitor.Operator.String()),
+		RangeMinutes:                 types.Int64Value(int64(monitor.Range.Minutes())),
+		Threshold:                    types.Float64Value(monitor.Threshold),
+		Resolvable:                   types.BoolValue(monitor.Resolvable),
+		SecondDelay:                  types.Int64Value(int64(monitor.SecondDelay.Seconds())),
+		NotifyEveryRun:               types.BoolValue(monitor.NotifyEveryRun),
+		SkipResolved:                 types.BoolValue(monitor.SkipResolved),
+		Tolerance:                    types.Float64Value(monitor.Tolerance),
+		TriggerFromNRuns:             types.Int64Value(monitor.TriggerFromNRuns),
+		TriggerAfterNPositiveResults: types.Int64Value(monitor.TriggerAfterNPositiveResults),
+		CompareDays:                  types.Int64Value(monitor.CompareDays),
+		Type:                         types.StringValue(string(monitor.Type)),
 	}
 }
