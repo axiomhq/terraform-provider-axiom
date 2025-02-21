@@ -215,6 +215,7 @@ resource "axiom_monitor" "test_monitor" {
   notifier_ids = [
     axiom_notifier.slack_test.id
   ]
+  type			   = "Threshold"
   alert_on_no_data = false
   notify_by_group  = false
 }
@@ -236,27 +237,22 @@ resource "axiom_monitor" "test_monitor_without_description" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
+  type = "Threshold" 
 }
 
 resource "axiom_monitor" "test_monitor_match_event" {
 	depends_on = [axiom_dataset.test, axiom_notifier.slack_test]
 
 	name             = "test event matching monitor"
-	description      = "test_monitor updated"
+	description      = "this is a match event monitor so can't contain summarize"
 	apl_query        = <<EOT
 			  ['terraform-provider-dataset']
-			  | summarize count() by bin_auto(_time)
 			  EOT
-	interval_minutes = 5
-	operator         = "Above"
-	range_minutes    = 5
-	threshold        = 1
 	notifier_ids = [
 	  axiom_notifier.slack_test.id
 	]
-	alert_on_no_data = false
-	notify_by_group  = false
-  }
+	type = "MatchEvent"
+}
 
 resource "axiom_token" "test_token" {
   name        = "test_token"
@@ -379,6 +375,7 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 						alert_on_no_data = false
 						notify_by_group  = true
 						resolvable 		 = true
+						type = "Threshold"
 					}
 				`,
 				Check: resource.ComposeTestCheckFunc(
