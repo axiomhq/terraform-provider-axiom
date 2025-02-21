@@ -12,7 +12,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -58,6 +61,8 @@ type MonitorResourceModel struct {
 	TriggerAfterNPositiveResults types.Int64   `tfsdk:"trigger_after_n_positive_results"`
 	CompareDays                  types.Int64   `tfsdk:"compare_days"`
 	Type                         types.String  `tfsdk:"type"`
+	CreatedBy                    types.String  `tfsdk:"created_by"`
+	CreatedAt                    types.String  `tfsdk:"created_at"`
 }
 
 func (r *MonitorResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -85,11 +90,15 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"alert_on_no_data": schema.BoolAttribute{
 				MarkdownDescription: "If the monitor should trigger an alert if there is no data",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"notify_by_group": schema.BoolAttribute{
 				MarkdownDescription: "If the monitor should track non-time groups separately",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"apl_query": schema.StringAttribute{
 				MarkdownDescription: "The query used inside the monitor",
@@ -104,7 +113,9 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"interval_minutes": schema.Int64Attribute{
 				MarkdownDescription: "How often the monitor should run",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(1),
 			},
 			"notifier_ids": schema.ListAttribute{
 				Optional:    true,
@@ -113,7 +124,9 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"operator": schema.StringAttribute{
 				MarkdownDescription: "Operator used in monitor trigger evaluation",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
 				Validators: []validator.String{
 					stringvalidator.OneOf([]string{
 						axiom.Below.String(),
@@ -125,11 +138,15 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"range_minutes": schema.Int64Attribute{
 				MarkdownDescription: "Query time range from now",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(1),
 			},
 			"threshold": schema.Float64Attribute{
 				MarkdownDescription: "The threshold where the monitor should trigger",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
+				Default:             float64default.StaticFloat64(0),
 			},
 			"resolvable": schema.BoolAttribute{
 				MarkdownDescription: "Determines whether the events triggered by the monitor are individually resolvable. " +
@@ -141,14 +158,20 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"second_delay": schema.Int64Attribute{
 				MarkdownDescription: "The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)",
 				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(0),
 			},
 			"notify_every_run": schema.BoolAttribute{
 				MarkdownDescription: "Indicates whether to send notifications on every trigger",
 				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"skip_resolved": schema.BoolAttribute{
 				MarkdownDescription: "Specifies whether to skip resolved alerts",
 				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"created_by": schema.StringAttribute{
 				MarkdownDescription: "The ID of the user who created the monitor",
@@ -161,22 +184,37 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"tolerance": schema.Float64Attribute{
 				MarkdownDescription: "The tolerance percentage for anomaly detection",
 				Optional:            true,
+				Computed:            true,
+				Default:             float64default.StaticFloat64(0),
 			},
 			"trigger_from_n_runs": schema.Int64Attribute{
 				MarkdownDescription: "The number of consecutive check runs that must trigger before triggering an alert",
 				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(1),
 			},
 			"trigger_after_n_positive_results": schema.Int64Attribute{
 				MarkdownDescription: "The number of positive results needed before triggering",
 				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(0),
 			},
 			"compare_days": schema.Int64Attribute{
 				MarkdownDescription: "The number of days to compare for anomaly detection",
 				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(0),
 			},
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'",
 				Required:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOf([]string{
+						"Threshold",
+						"AnomalyDetection",
+						"MatchEvent",
+					}...),
+				},
 			},
 		},
 	}
@@ -317,14 +355,22 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 
 	var monitorType axiom.MonitorType
 	switch plan.Type.ValueString() {
-	case axiom.MonitorTypeThreshold.String():
+	case "Threshold":
 		monitorType = axiom.MonitorTypeThreshold
-	case axiom.MonitorTypeMatchEvent.String():
+	case "MatchEvent":
 		monitorType = axiom.MonitorTypeMatchEvent
-	case axiom.MonitorTypeAnonalyDetection.String():
+	case "AnomalyDetection":
 		monitorType = axiom.MonitorTypeAnonalyDetection
 	default:
-		monitorType = axiom.MonitorTypeThreshold
+		diags.AddError(
+			"Invalid monitor type",
+			fmt.Sprintf("Monitor type must be one of: Threshold, MatchEvent, AnomalyDetection. Got: %s", plan.Type.ValueString()),
+		)
+		return nil, diags
+	}
+
+	if diags = validateMonitor(plan); diags.HasError() {
+		return nil, diags
 	}
 
 	return &axiom.Monitor{
@@ -383,6 +429,73 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		TriggerFromNRuns:             types.Int64Value(monitor.TriggerFromNRuns),
 		TriggerAfterNPositiveResults: types.Int64Value(monitor.TriggerAfterNPositiveResults),
 		CompareDays:                  types.Int64Value(monitor.CompareDays),
-		Type:                         types.StringValue(string(monitor.Type)),
+		Type:                         types.StringValue(monitor.Type.String()),
+		CreatedBy:                    types.StringValue(monitor.CreatedBy),
+		CreatedAt:                    types.StringValue(monitor.CreatedAt.Format(time.RFC3339)),
 	}
+}
+
+func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	switch plan.Type.ValueString() {
+	case axiom.MonitorTypeThreshold.String():
+		if plan.IntervalMinutes.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Interval is required",
+				"Interval is required for monitor type threshold",
+			))
+		}
+		if plan.RangeMinutes.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Range is required",
+				"Range is required for monitor type threshold",
+			))
+		}
+		if plan.Threshold.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Threshold is required",
+				"Threshold is required for monitor type threshold",
+			))
+		}
+		if plan.Operator.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Operator is required",
+				"Operator is required for monitor type threshold",
+			))
+		}
+	case axiom.MonitorTypeMatchEvent.String():
+
+	case axiom.MonitorTypeAnonalyDetection.String():
+		if plan.IntervalMinutes.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Interval is required",
+				"Interval is required for monitor type anomaly detection",
+			))
+		}
+		if plan.RangeMinutes.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Range is required",
+				"Range is required for monitor type anomaly detection",
+			))
+		}
+		if plan.CompareDays.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"CompareDays is required",
+				"CompareDays is required for monitor type anomaly detection",
+			))
+		}
+		if plan.Tolerance.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Tolerance is required",
+				"Tolerance is required for monitor type anomaly detection",
+			))
+		}
+		if plan.Operator.IsNull() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Operator is required",
+				"Operator is required for monitor type anomaly detection",
+			))
+		}
+	}
+	return diags
 }

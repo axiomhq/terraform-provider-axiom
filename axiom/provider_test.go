@@ -215,6 +215,7 @@ resource "axiom_monitor" "test_monitor" {
   notifier_ids = [
     axiom_notifier.slack_test.id
   ]
+  type			   = "Threshold"
   alert_on_no_data = false
   notify_by_group  = false
 }
@@ -236,6 +237,7 @@ resource "axiom_monitor" "test_monitor_without_description" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
+  type = "Threshold" 
 }
 
 resource "axiom_monitor" "test_monitor_match_event" {
