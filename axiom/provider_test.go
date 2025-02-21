@@ -375,6 +375,7 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 						alert_on_no_data = false
 						notify_by_group  = true
 						resolvable 		 = true
+						type = "Threshold"
 					}
 				`,
 				Check: resource.ComposeTestCheckFunc(
