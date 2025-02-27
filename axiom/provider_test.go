@@ -86,6 +86,8 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 				_, err = client.Monitors.Get(context.Background(), resource.Primary.ID)
 			case "axiom_token":
 				_, err = client.Tokens.Get(context.Background(), resource.Primary.ID)
+			case "axiom_virtual_field":
+				_, err = client.VirtualFields.Get(context.Background(), resource.Primary.ID)
 			}
 			datasetErr, ok := err.(ax.HTTPError)
 			if !ok {
@@ -194,6 +196,7 @@ resource "axiom_dataset" "test" {
 }
 
 resource "axiom_virtual_field" "test" {
+	depends_on = [axiom_dataset.test]  
   name        = "VF"
   description = "my virtual field"
   expression = "a * b"
