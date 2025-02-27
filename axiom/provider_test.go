@@ -37,6 +37,9 @@ func TestAccAxiomResources_basic(t *testing.T) {
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_without_description"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.test", "name", "VF"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.test", "description", "my virtual field"),
+					resource.TestCheckResourceAttr("axiom_virtual_field.test", "expression", "a * b"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor"),
 					testAccCheckAxiomResourcesExist(client, "axiom_monitor.test_monitor_without_description"),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", "test monitor"),
@@ -83,6 +86,8 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 				_, err = client.Monitors.Get(context.Background(), resource.Primary.ID)
 			case "axiom_token":
 				_, err = client.Tokens.Get(context.Background(), resource.Primary.ID)
+			case "axiom_virtual_field":
+				_, err = client.VirtualFields.Get(context.Background(), resource.Primary.ID)
 			}
 			datasetErr, ok := err.(ax.HTTPError)
 			if !ok {
@@ -114,6 +119,8 @@ func testAccCheckAxiomResourcesExist(client *ax.Client, resourceName string) res
 			_, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
 		case "axiom_token":
 			_, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
+		case "axiom_virtual_field":
+			_, err = client.VirtualFields.Get(context.Background(), rs.Primary.ID)
 		}
 		return err
 	}
@@ -137,6 +144,8 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 			actual, err = client.Monitors.Get(context.Background(), rs.Primary.ID)
 		case "axiom_token":
 			actual, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
+		case "axiom_virtual_field":
+			actual, err = client.VirtualFields.Get(context.Background(), rs.Primary.ID)
 		}
 		if err != nil {
 			return fmt.Errorf("error fetching %s from Axiom: %s", rs.Type, err)
@@ -184,6 +193,14 @@ provider "axiom" {
 resource "axiom_dataset" "test" {
   name        = "terraform-provider-dataset"
   description = "A test dataset"
+}
+
+resource "axiom_virtual_field" "test" {
+	depends_on = [axiom_dataset.test]  
+  name        = "VF"
+  description = "my virtual field"
+  expression = "a * b"
+  dataset = axiom_dataset.test.id
 }
 
 resource "axiom_dataset" "test_without_description" {

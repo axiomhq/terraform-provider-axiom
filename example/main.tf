@@ -25,6 +25,13 @@ resource "axiom_notifier" "test_slack_notifier" {
   }
 }
 
+resource "axiom_virtual_field" "test" {
+  name        = "VF"
+  description = "my virtual field"
+  expression = "a * b"
+  dataset = "terraform-provider-dataset"
+}
+
 resource "axiom_notifier" "test_discord_notifier" {
   name = "test_discord_notifier"
   properties = {
