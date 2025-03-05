@@ -553,6 +553,9 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
+	// Preserve the token value from state since API doesn't return it
+	token.Token = plan.Token
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, token)...)
 }
 
