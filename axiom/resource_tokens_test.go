@@ -2,20 +2,28 @@ package axiom
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+
+	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 func TestAccTokenResource_TokenPersistence(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+		},
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
 		Steps: []resource.TestStep{
 			// Create and read back
 			{
