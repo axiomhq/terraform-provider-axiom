@@ -3,7 +3,7 @@ HOSTNAME=locally
 NAMESPACE=debug
 NAME=axiom
 BINARY=terraform-provider-${NAME}
-VERSION=1.3.2
+VERSION=1.4.1
 OS_ARCH=darwin_arm64
 
 default: install
