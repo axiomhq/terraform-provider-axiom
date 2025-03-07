@@ -223,7 +223,7 @@ resource "axiom_monitor" "test_monitor" {
   description      = "test_monitor updated"
   apl_query        = <<EOT
 			['terraform-provider-dataset']
-			| summarize count() by bin_auto(_time)
+			| summarize count()
 			EOT
   interval_minutes = 5
   operator         = "Above"
@@ -243,7 +243,7 @@ resource "axiom_monitor" "test_monitor_without_description" {
   name             = "test monitor without description"
   apl_query        = <<EOT
 			['terraform-provider-dataset']
-			| summarize count() by bin_auto(_time)
+			| summarize count()
 			EOT
   interval_minutes = 5
   operator         = "Above"
@@ -383,7 +383,7 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 						description      = "new_monitor updated"
 						apl_query        = <<EOT
 							['new-dataset']
-							| summarize count() by bin_auto(_time)
+							| summarize count()
 							EOT
 						interval_minutes = 5
 						operator         = "Above"
