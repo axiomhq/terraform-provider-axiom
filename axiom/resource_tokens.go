@@ -543,6 +543,14 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	apiToken, err := r.client.Tokens.Get(ctx, plan.ID.ValueString())
 	if err != nil {
+		if isNotFoundError(err) {
+			resp.Diagnostics.AddWarning(
+				"Token Not Found",
+				fmt.Sprintf("Token with ID %s does not exist and will be recreated if still defined in the configuration.", plan.ID.ValueString()),
+			)
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Unable to read token", err.Error())
 		return
 	}

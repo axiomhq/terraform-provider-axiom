@@ -2,8 +2,10 @@ package axiom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/axiomhq/axiom-go/axiom"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	datasourceschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -155,4 +157,12 @@ func convertAttribute(resourceAttribute resourceschema.Attribute) datasourcesche
 	default:
 		panic(fmt.Sprintf("unknown resource attribute type: %T", resourceAttribute))
 	}
+}
+
+func isNotFoundError(err error) bool {
+	var apiError axiom.HTTPError
+	if errors.As(err, &apiError) {
+		return apiError.Status == 404
+	}
+	return false
 }

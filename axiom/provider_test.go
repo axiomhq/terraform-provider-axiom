@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 
+	"github.com/axiomhq/axiom-go/axiom"
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
@@ -398,6 +400,133 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "resolvable", "resolvable"),
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "notify_by_group", "notifyByGroup"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccAxiom_RecreateAfterAPIDeletion tests the behavior of the Axiom provider
+// when a monitor is deleted via the Axiom API (outside Terraform) and then Terraform
+// attempts to reapply the configuration.
+// Note: The Axiom provider currently fails with a 404 error when the monitor is deleted
+// outside Terraform, which is not ideal. It should handle 404 errors by marking the resource
+// as absent and allowing Terraform to recreate it.
+func TestAccAxiom_RecreateAfterAPIDeletion(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	// Define the dataset and monitor names for consistent reference
+	datasetName := "new-dataset-recreate-" + uuid.NewString() // Add a random suffix to avoid conflicts
+	monitorName := "test-monitor-recreate-" + uuid.NewString()
+
+	// Define the Terraform configuration for the test
+	config := `
+		provider "axiom" {
+			api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+			base_url  = "` + os.Getenv("AXIOM_URL") + `"
+		}
+
+		resource "axiom_dataset" "test" {
+			name        = "` + datasetName + `"
+			description = "A test dataset for recreate test"
+		}
+
+		resource "axiom_monitor" "test_monitor" {
+			depends_on       = [axiom_dataset.test]
+
+			name             = "` + monitorName + `"
+			description      = "Monitor for recreate test"
+			apl_query        = <<EOT
+				['` + datasetName + `']
+				| summarize count()
+				EOT
+			interval_minutes = 5
+			operator         = "Above"
+			range_minutes    = 5
+			threshold        = 1
+			alert_on_no_data = false
+			notify_by_group  = true
+			resolvable       = true
+			type             = "Threshold"
+		}
+	`
+
+	deleteMonitorViaAPI := func(client *axiom.Client, monitorName string) func() {
+		return func() {
+			// Find the monitor by name
+			monitors, err := client.Monitors.List(context.Background())
+			if err != nil {
+				t.Fatalf("failed to list monitors: %v", err)
+			}
+
+			var monitorID string
+			for _, m := range monitors {
+				if m.Name == monitorName {
+					monitorID = m.ID
+					break
+				}
+			}
+
+			if monitorID == "" {
+				t.Fatalf("monitor with name %s not found", monitorName)
+			}
+
+			// Delete the monitor via the Axiom API
+			err = client.Monitors.Delete(context.Background(), monitorID)
+			if err != nil {
+				t.Fatalf("failed to delete monitor via API: %v", err)
+			}
+		}
+	}
+
+	deleteDatasetViaAPI := func(client *axiom.Client, datasetName string) func() {
+		return func() {
+			// Delete the dataset via the Axiom API using the dataset name as the ID
+			err := client.Datasets.Delete(context.Background(), datasetName)
+			if err != nil {
+				t.Fatalf("failed to delete dataset via API: %v", err)
+			}
+		}
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			// Step 1: Create the dataset and monitor
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", monitorName),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "description", "Monitor for recreate test"),
+				),
+			},
+			// Step 2: Delete the monitor via the Axiom API and reapply
+			{
+				PreConfig: func() {
+					// Delete the monitor via the Axiom API
+					deleteMonitorViaAPI(client, monitorName)()
+				},
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", monitorName),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "description", "Monitor for recreate test"),
+				),
+			},
+			// Step 3: Delete the dataset (which will delete the monitor too)
+			{
+				PreConfig: func() {
+					// Delete the monitor via the Axiom API
+					deleteDatasetViaAPI(client, datasetName)()
+				},
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", monitorName),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "description", "Monitor for recreate test"),
 				),
 			},
 		},
