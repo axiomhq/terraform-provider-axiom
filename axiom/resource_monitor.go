@@ -276,6 +276,14 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	monitor, err := r.client.Monitors.Get(ctx, plan.ID.ValueString())
 	if err != nil {
+		if isNotFoundError(err) {
+			resp.Diagnostics.AddWarning(
+				"Monitor Not Found",
+				fmt.Sprintf("Monitor with ID %s does not exist and will be recreated if still defined in the configuration.", plan.ID.ValueString()),
+			)
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Unable to read Monitor", err.Error())
 		return
 	}

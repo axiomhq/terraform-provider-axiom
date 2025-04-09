@@ -361,6 +361,14 @@ func (r *NotifierResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	notifier, err := r.client.Notifiers.Get(ctx, plan.ID.ValueString())
 	if err != nil {
+		if isNotFoundError(err) {
+			resp.Diagnostics.AddWarning(
+				"Notifier Not Found",
+				fmt.Sprintf("Notifier with ID %s does not exist and will be recreated if still defined in the configuration.", plan.ID.ValueString()),
+			)
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Unable to read Notifier", err.Error())
 		return
 	}

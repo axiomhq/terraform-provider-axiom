@@ -119,6 +119,14 @@ func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	ds, err := r.client.Datasets.Get(ctx, plan.ID.ValueString())
 	if err != nil {
+		if isNotFoundError(err) {
+			resp.Diagnostics.AddWarning(
+				"Dataset Not Found",
+				fmt.Sprintf("Dataset with ID %s does not exist and will be recreated if still defined in the configuration.", plan.ID.ValueString()),
+			)
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Unable to read dataset", err.Error())
 		return
 	}
