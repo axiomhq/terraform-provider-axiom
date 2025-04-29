@@ -668,7 +668,22 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		orgCapabilities.SharedAccessKeys,
 		orgCapabilities.Users,
 	) {
-		return types.ObjectNull(OrgCapabilities{}.Types()), nil
+		return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
+			Annotations:      types.ListNull(types.StringType),
+			APITokens:        types.ListNull(types.StringType),
+			Auditlog:         types.ListNull(types.StringType),
+			Billing:          types.ListNull(types.StringType),
+			Dashboards:       types.ListNull(types.StringType),
+			Datasets:         types.ListNull(types.StringType),
+			Endpoints:        types.ListNull(types.StringType),
+			Flows:            types.ListNull(types.StringType),
+			Integrations:     types.ListNull(types.StringType),
+			Monitors:         types.ListNull(types.StringType),
+			Notifiers:        types.ListNull(types.StringType),
+			Rbac:             types.ListNull(types.StringType),
+			SharedAccessKeys: types.ListNull(types.StringType),
+			Users:            types.ListNull(types.StringType),
+		})
 	}
 
 	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
