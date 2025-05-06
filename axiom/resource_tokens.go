@@ -695,25 +695,38 @@ func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenRes
 }
 
 func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.OrganisationCapabilities) (types.Object, diag.Diagnostics) {
-	if allEmpty(
-		orgCapabilities.Annotations,
-		orgCapabilities.APITokens,
-		orgCapabilities.AuditLog,
-		orgCapabilities.Billing,
-		orgCapabilities.Dashboards,
-		orgCapabilities.Datasets,
-		orgCapabilities.Endpoints,
-		orgCapabilities.Flows,
-		orgCapabilities.Integrations,
-		orgCapabilities.Monitors,
-		orgCapabilities.Notifiers,
-		orgCapabilities.RBAC,
-		orgCapabilities.SharedAccessKeys,
-		orgCapabilities.Users,
-	) {
+	// Check if any capability has values
+	hasValues := false
+	for _, v := range []struct {
+		values []axiom.Action
+	}{
+		{orgCapabilities.Annotations},
+		{orgCapabilities.APITokens},
+		{orgCapabilities.AuditLog},
+		{orgCapabilities.Billing},
+		{orgCapabilities.Dashboards},
+		{orgCapabilities.Datasets},
+		{orgCapabilities.Endpoints},
+		{orgCapabilities.Flows},
+		{orgCapabilities.Integrations},
+		{orgCapabilities.Monitors},
+		{orgCapabilities.Notifiers},
+		{orgCapabilities.RBAC},
+		{orgCapabilities.SharedAccessKeys},
+		{orgCapabilities.Users},
+	} {
+		if len(v.values) > 0 {
+			hasValues = true
+			break
+		}
+	}
+
+	// If no capabilities have values, return null
+	if !hasValues {
 		return types.ObjectNull(OrgCapabilities{}.Types()), nil
 	}
 
+	// Create an object with all capabilities, using empty lists for those without values
 	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
 		Annotations:      flattenAxiomActionSlice(orgCapabilities.Annotations),
 		APITokens:        flattenAxiomActionSlice(orgCapabilities.APITokens),
@@ -733,15 +746,38 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 }
 
 func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[string]axiom.DatasetCapabilities) (types.Map, diag.Diagnostics) {
-	dsCapabilities := map[string]DatasetCapabilities{}
-
 	if len(datasetCapabilities) == 0 {
 		return types.MapNull(types.ObjectType{
 			AttrTypes: DatasetCapabilities{}.Types(),
 		}), nil
 	}
 
+	dsCapabilities := map[string]DatasetCapabilities{}
 	for dataset, capabilities := range datasetCapabilities {
+		// Check if any capability has values
+		hasValues := false
+		for _, v := range []struct {
+			values []axiom.Action
+		}{
+			{capabilities.Ingest},
+			{capabilities.Query},
+			{capabilities.StarredQueries},
+			{capabilities.VirtualFields},
+			{capabilities.Data},
+			{capabilities.Trim},
+			{capabilities.Vacuum},
+		} {
+			if len(v.values) > 0 {
+				hasValues = true
+				break
+			}
+		}
+
+		// If no capabilities have values, skip this dataset
+		if !hasValues {
+			continue
+		}
+
 		dsCapabilities[dataset] = DatasetCapabilities{
 			Ingest:         flattenAxiomActionSlice(capabilities.Ingest),
 			Query:          flattenAxiomActionSlice(capabilities.Query),
@@ -751,6 +787,13 @@ func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[str
 			Trim:           flattenAxiomActionSlice(capabilities.Trim),
 			Vacuum:         flattenAxiomActionSlice(capabilities.Vacuum),
 		}
+	}
+
+	// If no datasets have any capabilities, return null
+	if len(dsCapabilities) == 0 {
+		return types.MapNull(types.ObjectType{
+			AttrTypes: DatasetCapabilities{}.Types(),
+		}), nil
 	}
 
 	t, dg := types.MapValueFrom(
