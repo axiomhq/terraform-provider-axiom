@@ -534,7 +534,7 @@ func TestAccAxiom_RecreateAfterAPIDeletion(t *testing.T) {
 	})
 }
 
-func TestAccAxiomResources_orgCapabilities(t *testing.T) {
+func TestAccAxiomResources_capabilities(t *testing.T) {
 	client, err := ax.NewClient()
 	assert.NoError(t, err)
 
@@ -557,6 +557,25 @@ func TestAccAxiomResources_orgCapabilities(t *testing.T) {
 						org_capabilities = {
 							datasets = []
 							api_tokens = []
+						}
+					}
+				`,
+				ExpectError: regexp.MustCompile(`at\sleast\sone\scapability\smust\sbe\sset`),
+			},
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_token" "test_token" {
+						name        = "test-token-dataset-capabilities"
+						description = "Test token with dataset capabilities"
+						dataset_capabilities = {
+							"new-dataset" = {
+								query  = []
+							}
 						}
 					}
 				`,
