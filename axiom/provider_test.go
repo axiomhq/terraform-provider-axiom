@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -528,6 +529,38 @@ func TestAccAxiom_RecreateAfterAPIDeletion(t *testing.T) {
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", monitorName),
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "description", "Monitor for recreate test"),
 				),
+			},
+		},
+	})
+}
+
+func TestAccAxiomResources_orgCapabilities(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_token" "test_token" {
+						name        = "test-token-org-capabilities"
+						description = "Test token with org capabilities"
+						org_capabilities = {
+							datasets = []
+							api_tokens = []
+						}
+					}
+				`,
+				ExpectError: regexp.MustCompile(`at\sleast\sone\scapability\smust\sbe\sset`),
 			},
 		},
 	})
