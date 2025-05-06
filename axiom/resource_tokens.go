@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -168,6 +169,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					Attributes: map[string]schema.Attribute{
 						"ingest": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to ingest into the specified dataset",
 							Validators: []validator.List{
@@ -178,9 +180,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"query": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to query the specified dataset",
 							Validators: []validator.List{
@@ -191,9 +195,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"starred_queries": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to perform actions on starred queries for the specified dataset",
 							Validators: []validator.List{
@@ -204,9 +210,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"virtual_fields": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to perform actions on virtual fields for the provided dataset",
 							Validators: []validator.List{
@@ -217,9 +225,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"data": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to manage the data in a dataset",
 							Validators: []validator.List{
@@ -230,9 +240,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"trim": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to trim the data in a dataset",
 							Validators: []validator.List{
@@ -243,9 +255,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"vacuum": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Ability to vacuum the fields in a dataset",
 							Validators: []validator.List{
@@ -256,6 +270,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							PlanModifiers: []planmodifier.List{
 								listplanmodifier.RequiresReplace(),
 							},
+							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 					},
 				},
@@ -266,6 +281,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Attributes: map[string]schema.Attribute{
 					"annotations": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to perform actions on annotations",
 						Validators: []validator.List{
@@ -276,9 +292,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"api_tokens": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage api tokens",
 						Validators: []validator.List{
@@ -289,9 +307,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"audit_log": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to read the audit log",
 						Validators: []validator.List{
@@ -302,9 +322,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"billing": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage billing information",
 						Validators: []validator.List{
@@ -315,9 +337,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"dashboards": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage dashboards",
 						Validators: []validator.List{
@@ -328,9 +352,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"datasets": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage datasets",
 						Validators: []validator.List{
@@ -341,9 +367,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"endpoints": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage endpoints",
 						Validators: []validator.List{
@@ -354,9 +382,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"flows": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage flows",
 						Validators: []validator.List{
@@ -367,9 +397,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"integrations": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage integrations",
 						Validators: []validator.List{
@@ -380,9 +412,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"monitors": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage monitors",
 						Validators: []validator.List{
@@ -393,9 +427,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"notifiers": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage notifiers",
 						Validators: []validator.List{
@@ -406,9 +442,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"rbac": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage roles and groups",
 						Validators: []validator.List{
@@ -419,9 +457,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"shared_access_keys": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage shared access keys",
 						Validators: []validator.List{
@@ -432,9 +472,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"users": schema.ListAttribute{
 						Optional:    true,
+						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage users",
 						Validators: []validator.List{
@@ -445,6 +487,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.RequiresReplace(),
 						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 				},
 			},
@@ -668,22 +711,7 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		orgCapabilities.SharedAccessKeys,
 		orgCapabilities.Users,
 	) {
-		return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
-			Annotations:      types.ListNull(types.StringType),
-			APITokens:        types.ListNull(types.StringType),
-			Auditlog:         types.ListNull(types.StringType),
-			Billing:          types.ListNull(types.StringType),
-			Dashboards:       types.ListNull(types.StringType),
-			Datasets:         types.ListNull(types.StringType),
-			Endpoints:        types.ListNull(types.StringType),
-			Flows:            types.ListNull(types.StringType),
-			Integrations:     types.ListNull(types.StringType),
-			Monitors:         types.ListNull(types.StringType),
-			Notifiers:        types.ListNull(types.StringType),
-			Rbac:             types.ListNull(types.StringType),
-			SharedAccessKeys: types.ListNull(types.StringType),
-			Users:            types.ListNull(types.StringType),
-		})
+		return types.ObjectNull(OrgCapabilities{}.Types()), nil
 	}
 
 	return types.ObjectValueFrom(ctx, OrgCapabilities{}.Types(), OrgCapabilities{
@@ -900,7 +928,7 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 
 func flattenAxiomActionSlice(values []axiom.Action) types.List {
 	if len(values) == 0 {
-		return types.ListNull(types.StringType)
+		return types.ListValueMust(types.StringType, []attr.Value{})
 	}
 
 	listElements := make([]attr.Value, 0, len(values))
