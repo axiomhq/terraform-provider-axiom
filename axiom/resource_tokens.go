@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -162,6 +163,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"dataset_capabilities": schema.MapNestedAttribute{
 				MarkdownDescription: "The capabilities available to the token for each dataset",
 				Optional:            true,
+				Computed:            true,
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.RequiresReplace(),
 				},
@@ -274,6 +276,12 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 					},
 				},
+				Default: mapdefault.StaticValue(types.MapValueMust(
+					types.ObjectType{
+						AttrTypes: DatasetCapabilities{}.Types(),
+					},
+					map[string]attr.Value{},
+				)),
 			},
 			"org_capabilities": schema.SingleNestedAttribute{
 				Description: "The organisation capabilities available to the token",
@@ -734,25 +742,16 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 
 func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[string]axiom.DatasetCapabilities) (types.Map, diag.Diagnostics) {
 	if len(datasetCapabilities) == 0 {
-		return types.MapNull(types.ObjectType{
-			AttrTypes: DatasetCapabilities{}.Types(),
-		}), nil
+		return types.MapValueMust(
+			types.ObjectType{
+				AttrTypes: DatasetCapabilities{}.Types(),
+			},
+			map[string]attr.Value{},
+		), nil
 	}
 
 	dsCapabilities := map[string]DatasetCapabilities{}
 	for dataset, capabilities := range datasetCapabilities {
-		if allEmpty(
-			capabilities.Ingest,
-			capabilities.Query,
-			capabilities.StarredQueries,
-			capabilities.VirtualFields,
-			capabilities.Data,
-			capabilities.Trim,
-			capabilities.Vacuum,
-		) {
-			continue
-		}
-
 		dsCapabilities[dataset] = DatasetCapabilities{
 			Ingest:         flattenAxiomActionSlice(capabilities.Ingest),
 			Query:          flattenAxiomActionSlice(capabilities.Query),
@@ -1011,5 +1010,4 @@ func allEmpty(val ...[]axiom.Action) bool {
 		}
 	}
 	return true
-
 }
