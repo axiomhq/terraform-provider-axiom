@@ -763,13 +763,6 @@ func flattenDatasetCapabilities(ctx context.Context, datasetCapabilities map[str
 		}
 	}
 
-	// If no datasets have any capabilities, return null
-	if len(dsCapabilities) == 0 {
-		return types.MapNull(types.ObjectType{
-			AttrTypes: DatasetCapabilities{}.Types(),
-		}), nil
-	}
-
 	t, dg := types.MapValueFrom(
 		ctx,
 		types.ObjectType{
