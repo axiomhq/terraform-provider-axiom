@@ -561,6 +561,26 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		tokenExpiry = tokenExpiry.UTC()
 	}
 
+	// Check if there is at least one dataset capability for any dataset
+	hasDatasetCapability := false
+	for _, capabilities := range datasetCapabilities {
+		if !allEmpty(
+			capabilities.Ingest,
+			capabilities.Query,
+			capabilities.StarredQueries,
+			capabilities.VirtualFields,
+			capabilities.Data,
+			capabilities.Trim,
+			capabilities.Vacuum,
+		) {
+			hasDatasetCapability = true
+		}
+	}
+	if len(datasetCapabilities) > 0 && !hasDatasetCapability {
+		resp.Diagnostics.AddError("Client Error", "At least one dataset capability must be set")
+		return
+	}
+
 	token, err := r.client.Tokens.Create(ctx, axiom.CreateTokenRequest{
 		Name:                     plan.Name.ValueString(),
 		Description:              plan.Description.ValueString(),
