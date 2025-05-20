@@ -5,8 +5,7 @@ go 1.23.0
 toolchain go1.23.4
 
 // v0.24.0-pre
-// replace github.com/axiomhq/axiom-go => github.com/axiomhq/axiom-go add-retention-parameters-to-create-and-update-dataset-structs
-replace github.com/axiomhq/axiom-go => github.com/axiomhq/axiom-go v0.23.3-0.20250519234654-04a45aec977a
+replace github.com/axiomhq/axiom-go => github.com/axiomhq/axiom-go v0.23.3-0.20250520082820-dab7180c1ce1
 
 require (
 	github.com/axiomhq/axiom-go v0.23.0
