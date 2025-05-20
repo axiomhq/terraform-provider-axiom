@@ -23,3 +23,5 @@ description: |-
 
 - `description` (String) Dataset description
 - `name` (String) Dataset name
+- `retention_days` (Number) Retention days for the dataset
+- `use_retention_period` (Boolean) Use retention for the dataset

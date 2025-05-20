@@ -91,7 +91,10 @@ Required:
 Required:
 
 - `routing_key` (String) The pagerduty routing key
-- `token` (String) The pager duty token
+
+Optional:
+
+- `token` (String, Deprecated) The pager duty token
 
 
 <a id="nestedatt--properties--slack"></a>

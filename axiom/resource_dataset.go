@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -31,9 +33,11 @@ type DatasetResource struct {
 
 // DatasetResourceModel describes the resource data model.
 type DatasetResourceModel struct {
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	ID          types.String `tfsdk:"id"`
+	Name               types.String `tfsdk:"name"`
+	Description        types.String `tfsdk:"description"`
+	ID                 types.String `tfsdk:"id"`
+	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
+	RetentionDays      types.Int64  `tfsdk:"retention_days"`
 }
 
 func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -45,21 +49,41 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		Version: 1,
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				MarkdownDescription: "Dataset name",
 				Required:            true,
+				MarkdownDescription: "Dataset name",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{
-				MarkdownDescription: "Dataset description",
 				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Dataset description",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Dataset identifier",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"use_retention_period": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Use retention for the dataset",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"retention_days": schema.Int64Attribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Retention days for the dataset",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -97,9 +121,16 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	if plan.UseRetentionPeriod.ValueBool() && plan.RetentionDays.ValueInt64() == 0 {
+		resp.Diagnostics.AddError("Client Error", "Retention days must be greater than 0 when use_retention_period is true")
+		return
+	}
+
 	ds, err := r.client.Datasets.Create(ctx, axiom.DatasetCreateRequest{
-		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueString(),
+		Name:               plan.Name.ValueString(),
+		Description:        plan.Description.ValueString(),
+		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
+		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
@@ -142,8 +173,20 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	if r.client == nil {
+		resp.Diagnostics.AddError("Client Error", "Client is not set")
+		return
+	}
+
+	if plan.UseRetentionPeriod.ValueBool() && plan.RetentionDays.ValueInt64() == 0 {
+		resp.Diagnostics.AddError("Client Error", "Retention days must be greater than 0 when use_retention_period is true")
+		return
+	}
+
 	ds, err := r.client.Datasets.Update(ctx, plan.ID.ValueString(), axiom.DatasetUpdateRequest{
-		Description: plan.Description.ValueString(),
+		Description:        plan.Description.ValueString(),
+		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
+		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update dataset", err.Error())
@@ -179,8 +222,10 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 	}
 
 	return DatasetResourceModel{
-		Name:        types.StringValue(dataset.Name),
-		Description: description,
-		ID:          types.StringValue(dataset.ID),
+		ID:                 types.StringValue(dataset.ID),
+		Name:               types.StringValue(dataset.Name),
+		Description:        description,
+		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
+		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
 	}
 }

@@ -368,7 +368,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 	case "MatchEvent":
 		monitorType = axiom.MonitorTypeMatchEvent
 	case "AnomalyDetection":
-		monitorType = axiom.MonitorTypeAnonalyDetection
+		monitorType = axiom.MonitorTypeAnomalyDetection
 	default:
 		diags.AddError(
 			"Invalid monitor type",
@@ -473,7 +473,7 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 		}
 	case axiom.MonitorTypeMatchEvent.String():
 
-	case axiom.MonitorTypeAnonalyDetection.String():
+	case axiom.MonitorTypeAnomalyDetection.String():
 		if plan.IntervalMinutes.IsNull() {
 			diags = append(diags, diag.NewErrorDiagnostic(
 				"Interval is required",

@@ -22,6 +22,8 @@ description: |-
 ### Optional
 
 - `description` (String) Dataset description
+- `retention_days` (Number) Retention days for the dataset
+- `use_retention_period` (Boolean) Use retention for the dataset
 
 ### Read-Only
 
