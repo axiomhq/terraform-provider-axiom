@@ -3,7 +3,10 @@ package axiom
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -12,10 +15,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
+
+var validMapFieldNameRe = regexp.MustCompile("^[a-zA-Z0-9]+([a-zA-Z0-9_.-]*[a-zA-Z0-9]+)?$")
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
@@ -39,7 +45,7 @@ type DatasetResourceModel struct {
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
 	RetentionDays      types.Int64  `tfsdk:"retention_days"`
-	ObjectFields       types.List   `tfsdk:"object_fields"`
+	MapFields          types.List   `tfsdk:"map_fields"`
 }
 
 func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -88,11 +94,22 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					int64planmodifier.UseStateForUnknown(),
 				},
 			},
-			"object_fields": schema.ListAttribute{
+			"map_fields": schema.ListAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Object fields for the dataset",
+				MarkdownDescription: "Map fields for the dataset",
 				ElementType:         types.StringType,
+				Validators: []validator.List{
+					listvalidator.All(
+						listvalidator.ValueStringsAre(
+							stringvalidator.All(
+								stringvalidator.RegexMatches(validMapFieldNameRe, "Invalid field name format"),
+								stringvalidator.LengthAtLeast(1),
+							),
+						),
+						listvalidator.UniqueValues(),
+					),
+				},
 			},
 		},
 	}
@@ -145,20 +162,21 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	if !plan.ObjectFields.IsUnknown() {
-		objectFields, diags := typeStringSliceToStringSlice(ctx, plan.ObjectFields.Elements())
+	if !plan.MapFields.IsUnknown() {
+		mapFields := axiom.MapFields{}
+		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 			return
 		}
 
-		err := r.client.Datasets.UpdateObjectFields(ctx, ds.ID, objectFields)
+		err := r.client.Datasets.UpdateMapFields(ctx, ds.ID, mapFields)
 		if err != nil {
-			resp.Diagnostics.AddError("failed to update dataset object fields", err.Error())
+			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
 			return
 		}
 
-		ds.ObjectFields = objectFields
+		ds.MapFields = mapFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
@@ -217,20 +235,21 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	if !plan.ObjectFields.IsUnknown() {
-		objectFields, diags := typeStringSliceToStringSlice(ctx, plan.ObjectFields.Elements())
+	if !plan.MapFields.IsUnknown() {
+		mapFields := axiom.MapFields{}
+		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 			return
 		}
 
-		err := r.client.Datasets.UpdateObjectFields(ctx, plan.ID.ValueString(), objectFields)
+		err := r.client.Datasets.UpdateMapFields(ctx, plan.ID.ValueString(), mapFields)
 		if err != nil {
-			resp.Diagnostics.AddError("failed to update dataset object fields", err.Error())
+			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
 			return
 		}
 
-		ds.ObjectFields = objectFields
+		ds.MapFields = mapFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
@@ -261,9 +280,9 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		description = types.StringValue(dataset.Description)
 	}
 
-	objectFields := make([]attr.Value, 0, len(dataset.ObjectFields))
-	for _, fieldName := range dataset.ObjectFields {
-		objectFields = append(objectFields, types.StringValue(fieldName))
+	mapFields := make([]attr.Value, 0, len(dataset.MapFields))
+	for _, fieldName := range dataset.MapFields {
+		mapFields = append(mapFields, types.StringValue(fieldName))
 	}
 
 	return DatasetResourceModel{
@@ -272,6 +291,6 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		Description:        description,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
-		ObjectFields:       types.ListValueMust(types.StringType, objectFields),
+		MapFields:          types.ListValueMust(types.StringType, mapFields),
 	}
 }
