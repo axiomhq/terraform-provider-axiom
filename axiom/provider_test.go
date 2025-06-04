@@ -521,7 +521,7 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 				`,
 				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sValue\sLength`),
 			},
-			// Step 5: Try to use null as map-fields
+			// Step 5: Try to use null as map-fields (should be ignored)
 			{
 				Config: `
 					provider "axiom" {
@@ -534,7 +534,14 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 						map_fields = null
 					}
 				`,
-				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sValue\sLength`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.3", "field4"),
+				),
 			},
 			// Step 6: Try to use an invalid map-field name
 			{
