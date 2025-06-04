@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -38,6 +39,7 @@ type DatasetResourceModel struct {
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
 	RetentionDays      types.Int64  `tfsdk:"retention_days"`
+	ObjectFields       types.List   `tfsdk:"object_fields"`
 }
 
 func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -85,6 +87,12 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
+			},
+			"object_fields": schema.ListAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Object fields for the dataset",
+				ElementType:         types.StringType,
 			},
 		},
 	}
@@ -135,6 +143,22 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
+	}
+
+	if !plan.ObjectFields.IsUnknown() {
+		objectFields, diags := typeStringSliceToStringSlice(ctx, plan.ObjectFields.Elements())
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		err := r.client.Datasets.UpdateObjectFields(ctx, ds.ID, objectFields)
+		if err != nil {
+			resp.Diagnostics.AddError("failed to update dataset object fields", err.Error())
+			return
+		}
+
+		ds.ObjectFields = objectFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
@@ -193,6 +217,22 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	if !plan.ObjectFields.IsUnknown() {
+		objectFields, diags := typeStringSliceToStringSlice(ctx, plan.ObjectFields.Elements())
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		err := r.client.Datasets.UpdateObjectFields(ctx, plan.ID.ValueString(), objectFields)
+		if err != nil {
+			resp.Diagnostics.AddError("failed to update dataset object fields", err.Error())
+			return
+		}
+
+		ds.ObjectFields = objectFields
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
@@ -221,11 +261,17 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		description = types.StringValue(dataset.Description)
 	}
 
+	objectFields := make([]attr.Value, 0, len(dataset.ObjectFields))
+	for _, fieldName := range dataset.ObjectFields {
+		objectFields = append(objectFields, types.StringValue(fieldName))
+	}
+
 	return DatasetResourceModel{
 		ID:                 types.StringValue(dataset.ID),
 		Name:               types.StringValue(dataset.Name),
 		Description:        description,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
+		ObjectFields:       types.ListValueMust(types.StringType, objectFields),
 	}
 }

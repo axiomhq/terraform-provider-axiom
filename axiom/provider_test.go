@@ -426,6 +426,108 @@ func TestAccAxiomResources_dataset_retention(t *testing.T) {
 	})
 }
 
+func TestAccAxiomResources_dataset_object_fields(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	// Define the dataset name for consistent reference
+	datasetName := "new-dataset-objectfields-" + uuid.NewString() // Add a random suffix to avoid conflicts
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			// Step 1: Create the dataset with some object fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						description = "A test dataset"
+						object_fields = ["field1", "field2"]
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.#", "2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.1", "field2"),
+				),
+			},
+			// Step 2: Update the dataset to add more object fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						object_fields = ["field1", "field2", "field3", "field4"]
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.3", "field4"),
+				),
+			},
+			// Step 3: Just update the description (should not affect object fields)
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						description = "Updated description for a test dataset to check object fields"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "Updated description for a test dataset to check object fields"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.3", "field4"),
+				),
+			},
+			// Step 4: Update again to remove all object fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						object_fields = []
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "object_fields.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func testAccPreCheck(t *testing.T) {
 	if os.Getenv("AXIOM_TOKEN") == "" {
 		t.Fatalf("AXIOM_TOKEN must be set for acceptance tests")
