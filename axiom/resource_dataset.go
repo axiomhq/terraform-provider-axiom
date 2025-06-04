@@ -3,7 +3,11 @@ package axiom
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -11,10 +15,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
+
+var validMapFieldNameRe = regexp.MustCompile("^[a-zA-Z0-9]+([a-zA-Z0-9_.-]*[a-zA-Z0-9]+)?$")
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
@@ -38,6 +45,7 @@ type DatasetResourceModel struct {
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
 	RetentionDays      types.Int64  `tfsdk:"retention_days"`
+	MapFields          types.List   `tfsdk:"map_fields"`
 }
 
 func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -84,6 +92,23 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "Retention days for the dataset",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"map_fields": schema.ListAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Map fields for the dataset",
+				ElementType:         types.StringType,
+				Validators: []validator.List{
+					listvalidator.All(
+						listvalidator.ValueStringsAre(
+							stringvalidator.All(
+								stringvalidator.RegexMatches(validMapFieldNameRe, "Invalid field name format"),
+								stringvalidator.LengthAtLeast(1),
+							),
+						),
+						listvalidator.UniqueValues(),
+					),
 				},
 			},
 		},
@@ -135,6 +160,23 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
+	}
+
+	if !plan.MapFields.IsUnknown() {
+		mapFields := axiom.MapFields{}
+		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		err := r.client.Datasets.UpdateMapFields(ctx, ds.ID, mapFields)
+		if err != nil {
+			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
+			return
+		}
+
+		ds.MapFields = mapFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
@@ -193,6 +235,23 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	if !plan.MapFields.IsUnknown() {
+		mapFields := axiom.MapFields{}
+		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		err := r.client.Datasets.UpdateMapFields(ctx, plan.ID.ValueString(), mapFields)
+		if err != nil {
+			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
+			return
+		}
+
+		ds.MapFields = mapFields
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
@@ -221,11 +280,17 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		description = types.StringValue(dataset.Description)
 	}
 
+	mapFields := make([]attr.Value, 0, len(dataset.MapFields))
+	for _, fieldName := range dataset.MapFields {
+		mapFields = append(mapFields, types.StringValue(fieldName))
+	}
+
 	return DatasetResourceModel{
 		ID:                 types.StringValue(dataset.ID),
 		Name:               types.StringValue(dataset.Name),
 		Description:        description,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
+		MapFields:          types.ListValueMust(types.StringType, mapFields),
 	}
 }
