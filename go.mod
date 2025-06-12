@@ -4,10 +4,8 @@ go 1.23.0
 
 toolchain go1.23.4
 
-replace github.com/axiomhq/axiom-go => github.com/axiomhq/axiom-go v0.23.4-0.20250604154124-896dd4220278
-
 require (
-	github.com/axiomhq/axiom-go v0.23.3
+	github.com/axiomhq/axiom-go v0.24.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.19.4
 	github.com/hashicorp/terraform-plugin-framework v1.13.0
