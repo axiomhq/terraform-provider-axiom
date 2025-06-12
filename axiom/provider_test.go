@@ -426,6 +426,175 @@ func TestAccAxiomResources_dataset_retention(t *testing.T) {
 	})
 }
 
+func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	// Define the dataset name for consistent reference
+	datasetName := "new-dataset-mapfields-" + uuid.NewString() // Add a random suffix to avoid conflicts
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			// Step 1: Create the dataset with some map-fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						description = "A test dataset"
+						map_fields = ["field1", "field2"]
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.1", "field2"),
+				),
+			},
+			// Step 2: Update the dataset to add more map-fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						map_fields = ["field1", "field2", "field3", "field4"]
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.3", "field4"),
+				),
+			},
+			// Step 3: Just update the description (should not affect map-fields)
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						description = "Updated description for a test dataset to check map-fields"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "Updated description for a test dataset to check map-fields"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.3", "field4"),
+				),
+			},
+			// Step 4: Try to use an empty map-field name
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						map_fields = [""]
+					}
+				`,
+				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sValue\sLength`),
+			},
+			// Step 5: Try to use null as map-fields (should be ignored)
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						map_fields = null
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "4"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.0", "field1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.1", "field2"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.2", "field3"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.3", "field4"),
+				),
+			},
+			// Step 6: Try to use an invalid map-field name
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						map_fields = [" xx "]
+					}
+				`,
+				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sValue\sMatch`),
+			},
+			// Step 7: Try to use duplicate map-field names
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"	
+						map_fields = ["dupe", "dupe"]
+					}
+				`,
+				ExpectError: regexp.MustCompile(`Error:\sDuplicate\sList\sValue`),
+			},
+			// Step 8: Update again to remove all map-fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"	
+						map_fields = []
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func testAccPreCheck(t *testing.T) {
 	if os.Getenv("AXIOM_TOKEN") == "" {
 		t.Fatalf("AXIOM_TOKEN must be set for acceptance tests")
