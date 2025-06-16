@@ -23,7 +23,7 @@ For more information about the available resources and data sources, use the lef
 
 To install the Axiom Terraform Provider from the [Terraform Registry](https://registry.terraform.io/providers/axiomhq/axiom/latest), follow these steps:
 
-1. Add the following code to your Terraform configuration file. Replace `API_TOKEN` with the Axiom API token you have generated. For added security, store the API token in an environment variable.
+1. Add the following code to your Terraform configuration file. Replace `API_TOKEN` with the Axiom API token you have generated. For added security, store the API token in an environment variable `AXIOM_API_TOKEN`.
 
     ```hcl
     terraform {
