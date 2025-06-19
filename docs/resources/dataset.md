@@ -22,6 +22,9 @@ description: |-
 ### Optional
 
 - `description` (String) Dataset description
+- `map_fields` (List of String) Map fields for the dataset
+- `retention_days` (Number) Retention days for the dataset
+- `use_retention_period` (Boolean) Use retention for the dataset
 
 ### Read-Only
 

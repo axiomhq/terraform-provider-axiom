@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	providerUserAgent = "terraform-provider-axiom/v1.1.0"
+	providerUserAgent = "terraform-provider-axiom/v1.4.6"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -48,7 +48,8 @@ func (p *axiomProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"api_token": schema.StringAttribute{
-				Required:            true,
+				Optional:            true,
+				Sensitive:           true,
 				MarkdownDescription: "The Axiom API token.",
 			},
 			"base_url": schema.StringAttribute{
@@ -116,6 +117,8 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 		NewMonitorDataSource,
 		NewNotifierDataSource,
 		NewUserDataSource,
+		NewTokenDataSource,
+		NewVirtualFieldDataSource,
 	}
 }
 
@@ -126,5 +129,7 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewMonitorResource,
 		NewNotifierResource,
 		NewUserResource,
+		NewTokenResource,
+		NewVirtualFieldResource,
 	}
 }

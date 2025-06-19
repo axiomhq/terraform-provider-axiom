@@ -2,7 +2,7 @@ terraform {
   required_providers {
     axiom = {
       source  = "axiomhq/axiom"
-      version = "1.1.0"
+      version = "1.4.3"
     }
   }
 }
@@ -23,6 +23,13 @@ resource "axiom_notifier" "test_slack_notifier" {
       slack_url = "SLACK_URL"
     }
   }
+}
+
+resource "axiom_virtual_field" "test" {
+  name        = "VF"
+  description = "my virtual field"
+  expression = "a * b"
+  dataset = "terraform-provider-dataset"
 }
 
 resource "axiom_notifier" "test_discord_notifier" {
@@ -46,7 +53,8 @@ resource "axiom_notifier" "test_email_notifier" {
 
 resource "axiom_monitor" "test_monitor" {
   depends_on       = [axiom_dataset.test_dataset, axiom_notifier.test_slack_notifier]
-  name             = "test_monitor"
+  type             = "Threshold" // Default
+  name             = "My test threshold monitor"
   description      = "This is a test monitor created by Terraform."
   apl_query        = "['test_dataset'] | summarize count() by bin_auto(_time)"
   interval_minutes = 5
@@ -60,8 +68,36 @@ resource "axiom_monitor" "test_monitor" {
   notify_by_group  = false
 }
 
+resource "axiom_monitor" "test_monitor_match_event" {
+  depends_on       = [axiom_dataset.test_dataset, axiom_notifier.test_slack_notifier]
+  type             = "MatchEvent"
+  name             = "My match event monitor"
+  description      = "This is an event matching monitor created by Terraform."
+  apl_query        = "['test_dataset']"
+  interval_minutes = 5
+  range_minutes    = 5
+  notifier_ids = [
+    axiom_notifier.test_slack_notifier.id
+  ]
+  alert_on_no_data = true
+}
+
 resource "axiom_user" "test_user" {
   name  = "test_user"
   email = "test@abc.com"
   role  = "user"
+}
+
+resource "axiom_token" "test_token" {
+  name        = "Example terraform token"
+  description = "This is a test token created by Terraform."
+  dataset_capabilities = {
+    "new-dataset" = {
+      ingest = ["create"],
+      query  = ["read"]
+    }
+  }
+  org_capabilities = {
+    annotations = ["create", "read", "update", "delete"]
+  }
 }

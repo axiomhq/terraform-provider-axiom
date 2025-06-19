@@ -29,6 +29,7 @@ description: |-
 
 Read-Only:
 
+- `custom_webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--custom_webhook))
 - `discord` (Attributes) (see [below for nested schema](#nestedatt--properties--discord))
 - `discord_webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--discord_webhook))
 - `email` (Attributes) (see [below for nested schema](#nestedatt--properties--email))
@@ -36,6 +37,16 @@ Read-Only:
 - `pagerduty` (Attributes) (see [below for nested schema](#nestedatt--properties--pagerduty))
 - `slack` (Attributes) (see [below for nested schema](#nestedatt--properties--slack))
 - `webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--webhook))
+
+<a id="nestedatt--properties--custom_webhook"></a>
+### Nested Schema for `properties.custom_webhook`
+
+Read-Only:
+
+- `body` (String) The JSON body
+- `headers` (Map of String) Any headers associated with the request
+- `url` (String) The webhook URL
+
 
 <a id="nestedatt--properties--discord"></a>
 ### Nested Schema for `properties.discord`

@@ -17,20 +17,32 @@ description: |-
 
 ### Required
 
-- `alert_on_no_data` (Boolean) If the monitor should trigger an alert if there is no data
 - `apl_query` (String) The query used inside the monitor
-- `interval_minutes` (Number) How often the monitor should run
 - `name` (String) Monitor name
-- `operator` (String) Operator used in monitor trigger evaluation
-- `range_minutes` (Number) Query time range from now
-- `threshold` (Number) The threshold where the monitor should trigger
+- `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'
 
 ### Optional
 
+- `alert_on_no_data` (Boolean) If the monitor should trigger an alert if there is no data
+- `compare_days` (Number) The number of days to compare for anomaly detection
 - `description` (String) Monitor description
 - `disabled_until` (String) The time the monitor will be disabled until
+- `interval_minutes` (Number) How often the monitor should run
 - `notifier_ids` (List of String) A list of notifier id's to be used when this monitor triggers
+- `notify_by_group` (Boolean) If the monitor should track non-time groups separately
+- `notify_every_run` (Boolean) Indicates whether to send notifications on every trigger
+- `operator` (String) Operator used in monitor trigger evaluation
+- `range_minutes` (Number) Query time range from now
+- `resolvable` (Boolean) Determines whether the events triggered by the monitor are individually resolvable. This has no effect on threshold monitors
+- `second_delay` (Number) The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)
+- `skip_resolved` (Boolean) Specifies whether to skip resolved alerts
+- `threshold` (Number) The threshold where the monitor should trigger
+- `tolerance` (Number) The tolerance percentage for anomaly detection
+- `trigger_after_n_positive_results` (Number) The number of positive results needed before triggering
+- `trigger_from_n_runs` (Number) The number of consecutive check runs that must trigger before triggering an alert
 
 ### Read-Only
 
+- `created_at` (String) The timestamp when the monitor was created
+- `created_by` (String) The ID of the user who created the monitor
 - `id` (String) Monitor identifier

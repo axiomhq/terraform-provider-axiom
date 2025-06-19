@@ -29,6 +29,7 @@ description: |-
 
 Optional:
 
+- `custom_webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--custom_webhook))
 - `discord` (Attributes) (see [below for nested schema](#nestedatt--properties--discord))
 - `discord_webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--discord_webhook))
 - `email` (Attributes) (see [below for nested schema](#nestedatt--properties--email))
@@ -36,6 +37,19 @@ Optional:
 - `pagerduty` (Attributes) (see [below for nested schema](#nestedatt--properties--pagerduty))
 - `slack` (Attributes) (see [below for nested schema](#nestedatt--properties--slack))
 - `webhook` (Attributes) (see [below for nested schema](#nestedatt--properties--webhook))
+
+<a id="nestedatt--properties--custom_webhook"></a>
+### Nested Schema for `properties.custom_webhook`
+
+Required:
+
+- `body` (String) The JSON body
+- `url` (String) The webhook URL
+
+Optional:
+
+- `headers` (Map of String, Sensitive) Any headers associated with the request
+
 
 <a id="nestedatt--properties--discord"></a>
 ### Nested Schema for `properties.discord`
@@ -77,7 +91,10 @@ Required:
 Required:
 
 - `routing_key` (String) The pagerduty routing key
-- `token` (String) The pager duty token
+
+Optional:
+
+- `token` (String, Deprecated) The pager duty token
 
 
 <a id="nestedatt--properties--slack"></a>
