@@ -170,13 +170,13 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		err := r.client.Datasets.UpdateMapFields(ctx, ds.ID, mapFields)
+		resMapFields, err := r.client.Datasets.UpdateMapFields(ctx, ds.ID, mapFields)
 		if err != nil {
 			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
 			return
 		}
 
-		ds.MapFields = mapFields
+		ds.MapFields = resMapFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
@@ -243,13 +243,13 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 			return
 		}
 
-		err := r.client.Datasets.UpdateMapFields(ctx, plan.ID.ValueString(), mapFields)
+		resMapFields, err := r.client.Datasets.UpdateMapFields(ctx, plan.ID.ValueString(), mapFields)
 		if err != nil {
 			resp.Diagnostics.AddError("failed to update dataset map-fields", err.Error())
 			return
 		}
 
-		ds.MapFields = mapFields
+		ds.MapFields = resMapFields
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
