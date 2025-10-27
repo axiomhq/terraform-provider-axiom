@@ -53,7 +53,7 @@ type MonitorResourceModel struct {
 	RangeMinutes                 types.Int64   `tfsdk:"range_minutes"`
 	Threshold                    types.Float64 `tfsdk:"threshold"`
 	Resolvable                   types.Bool    `tfsdk:"resolvable"`
-	SecondDelay                  types.Int64   `tfsdk:"second_delay"`
+	Delay                        types.Int64   `tfsdk:"delay"`
 	NotifyEveryRun               types.Bool    `tfsdk:"notify_every_run"`
 	SkipResolved                 types.Bool    `tfsdk:"skip_resolved"`
 	Tolerance                    types.Float64 `tfsdk:"tolerance"`
@@ -155,7 +155,7 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:  booldefault.StaticBool(false),
 				Computed: true,
 			},
-			"second_delay": schema.Int64Attribute{
+			"delay": schema.Int64Attribute{
 				MarkdownDescription: "The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)",
 				Optional:            true,
 				Computed:            true,
@@ -394,7 +394,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		Range:                        time.Duration(plan.RangeMinutes.ValueInt64() * int64(time.Minute)),
 		Threshold:                    plan.Threshold.ValueFloat64(),
 		Resolvable:                   plan.Resolvable.ValueBool(),
-		SecondDelay:                  time.Duration(plan.SecondDelay.ValueInt64()) * time.Second,
+		Delay:                        time.Duration(plan.Delay.ValueInt64()) * time.Second,
 		NotifyEveryRun:               plan.NotifyEveryRun.ValueBool(),
 		SkipResolved:                 plan.SkipResolved.ValueBool(),
 		Tolerance:                    plan.Tolerance.ValueFloat64(),
@@ -430,7 +430,7 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 		RangeMinutes:                 types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:                    types.Float64Value(monitor.Threshold),
 		Resolvable:                   types.BoolValue(monitor.Resolvable),
-		SecondDelay:                  types.Int64Value(int64(monitor.SecondDelay.Seconds())),
+		Delay:                        types.Int64Value(int64(monitor.Delay.Seconds())),
 		NotifyEveryRun:               types.BoolValue(monitor.NotifyEveryRun),
 		SkipResolved:                 types.BoolValue(monitor.SkipResolved),
 		Tolerance:                    types.Float64Value(monitor.Tolerance),

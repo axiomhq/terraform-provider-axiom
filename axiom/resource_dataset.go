@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -41,6 +42,7 @@ type DatasetResource struct {
 // DatasetResourceModel describes the resource data model.
 type DatasetResourceModel struct {
 	Name               types.String `tfsdk:"name"`
+	Kind               types.String `tfsdk:"kind"`
 	Description        types.String `tfsdk:"description"`
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
@@ -61,6 +63,23 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "Dataset name",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"kind": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Dataset kind. Must be one of: 'axiom:events:v1', 'otel:metrics:v1', 'otel:traces:v1', 'otel:logs:v1'. Defaults to 'axiom:events:v1'",
+				Default:             stringdefault.StaticString("axiom:events:v1"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						"axiom:events:v1",
+						"otel:metrics:v1",
+						"otel:traces:v1",
+						"otel:logs:v1",
+					),
 				},
 			},
 			"description": schema.StringAttribute{
@@ -153,6 +172,7 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 
 	ds, err := r.client.Datasets.Create(ctx, axiom.DatasetCreateRequest{
 		Name:               plan.Name.ValueString(),
+		Kind:               plan.Kind.ValueString(),
 		Description:        plan.Description.ValueString(),
 		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
 		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
@@ -288,6 +308,7 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 	return DatasetResourceModel{
 		ID:                 types.StringValue(dataset.ID),
 		Name:               types.StringValue(dataset.Name),
+		Kind:               types.StringValue(dataset.Kind),
 		Description:        description,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
