@@ -39,6 +39,7 @@ func TestAccAxiomResources_basic(t *testing.T) {
 					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_without_description"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "name", "terraform-provider-dataset"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "A test dataset"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "kind", "axiom:events:v1"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "use_retention_period", "false"),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "retention_days", "0"),
 					resource.TestCheckResourceAttr("axiom_virtual_field.test", "name", "VF"),
@@ -102,6 +103,69 @@ func TestAccAxiomResources_data(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.#", "1"),
 					resource.TestCheckResourceAttr("data.axiom_notifier.my-notifier", "properties.email.emails.0", emailToAssert),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAxiomDataset_kind(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test_otel_metrics" {
+						name = "test-otel-metrics-` + uuid.NewString() + `"
+						kind = "otel:metrics:v1"
+						description = "Test OTEL metrics dataset"
+					}
+
+					resource "axiom_dataset" "test_otel_traces" {
+						name = "test-otel-traces-` + uuid.NewString() + `"
+						kind = "otel:traces:v1"
+						description = "Test OTEL traces dataset"
+					}
+
+					resource "axiom_dataset" "test_otel_logs" {
+						name = "test-otel-logs-` + uuid.NewString() + `"
+						kind = "otel:logs:v1"
+						description = "Test OTEL logs dataset"
+					}
+
+					resource "axiom_dataset" "test_default_kind" {
+						name = "test-default-kind-` + uuid.NewString() + `"
+						description = "Test dataset with default kind"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_metrics"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_metrics", "kind", "otel:metrics:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_metrics", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_traces"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_traces", "kind", "otel:traces:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_traces", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_logs"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_logs", "kind", "otel:logs:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_logs", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_default_kind"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_default_kind", "kind", "axiom:events:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_default_kind", "kind", "kind"),
 				),
 			},
 		},
@@ -567,7 +631,7 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 					}
 
 					resource "axiom_dataset" "test" {
-						name        = "` + datasetName + `"	
+						name        = "` + datasetName + `"
 						map_fields = ["dupe", "dupe"]
 					}
 				`,
@@ -582,13 +646,76 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 					}
 
 					resource "axiom_dataset" "test" {
-						name        = "` + datasetName + `"	
+						name        = "` + datasetName + `"
 						map_fields = []
 					}
 				`,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("axiom_dataset.test", "id", datasetName),
 					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAxiomResources_dataset_map_kind(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test_otel_metrics" {
+						name = "test-otel-metrics-` + uuid.NewString() + `"
+						kind = "otel:metrics:v1"
+						description = "Test OTEL metrics dataset"
+					}
+
+					resource "axiom_dataset" "test_otel_traces" {
+						name = "test-otel-traces-` + uuid.NewString() + `"
+						kind = "otel:traces:v1"
+						description = "Test OTEL traces dataset"
+					}
+
+					resource "axiom_dataset" "test_otel_logs" {
+						name = "test-otel-logs-` + uuid.NewString() + `"
+						kind = "otel:logs:v1"
+						description = "Test OTEL logs dataset"
+					}
+
+					resource "axiom_dataset" "test_default_kind" {
+						name = "test-default-kind-` + uuid.NewString() + `"
+						description = "Test dataset with default kind"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_metrics"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_metrics", "kind", "otel:metrics:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_metrics", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_traces"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_traces", "kind", "otel:traces:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_traces", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_otel_logs"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_otel_logs", "kind", "otel:logs:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_otel_logs", "kind", "kind"),
+
+					testAccCheckAxiomResourcesExist(client, "axiom_dataset.test_default_kind"),
+					resource.TestCheckResourceAttr("axiom_dataset.test_default_kind", "kind", "axiom:events:v1"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_dataset.test_default_kind", "kind", "kind"),
 				),
 			},
 		},
@@ -732,7 +859,7 @@ resource "axiom_dataset" "test" {
 }
 
 resource "axiom_virtual_field" "test" {
-  depends_on = [axiom_dataset.test]  
+  depends_on = [axiom_dataset.test]
   name        = "VF"
   description = "my virtual field"
   expression = "a * b"
@@ -790,7 +917,7 @@ resource "axiom_monitor" "test_monitor_without_description" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
-  type = "Threshold" 
+  type = "Threshold"
 }
 
 resource "axiom_monitor" "test_monitor_match_event" {
