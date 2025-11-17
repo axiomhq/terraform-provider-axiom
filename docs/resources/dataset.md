@@ -22,6 +22,7 @@ description: |-
 ### Optional
 
 - `description` (String) Dataset description
+- `kind` (String) Dataset kind. Must be one of: 'axiom:events:v1', 'otel:metrics:v1', 'otel:traces:v1', 'otel:logs:v1'. Defaults to 'axiom:events:v1'
 - `map_fields` (List of String) Map fields for the dataset
 - `retention_days` (Number) Retention days for the dataset
 - `use_retention_period` (Boolean) Use retention for the dataset
