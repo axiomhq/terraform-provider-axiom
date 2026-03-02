@@ -254,6 +254,26 @@ func TestFlattenDashboardResource_MissingUID(t *testing.T) {
 	}
 }
 
+func TestFlattenDashboardResource_NullOverwriteDefaultsFalse(t *testing.T) {
+	in := dashboardResourcePayload{
+		UID:       "uid-1",
+		ID:        "id-1",
+		Version:   5,
+		Dashboard: json.RawMessage(`{"name":"dash"}`),
+	}
+
+	got, err := flattenDashboardResource(in, types.BoolNull(), types.StringValue(`{"name":"dash"}`))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got.Overwrite.IsNull() || got.Overwrite.IsUnknown() {
+		t.Fatal("expected overwrite to be materialized in state")
+	}
+	if got.Overwrite.ValueBool() {
+		t.Fatal("expected overwrite default to false")
+	}
+}
+
 func TestDashboardWriteErrorDiagnostics_VersionMismatch(t *testing.T) {
 	diagnostics := diag.Diagnostics{}
 	addDashboardWriteErrorDiagnostics(&diagnostics, axiom.HTTPError{Status: 412, Message: "dashboard version mismatch"}, "uid1", 3)

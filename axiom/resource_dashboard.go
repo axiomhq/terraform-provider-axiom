@@ -380,6 +380,12 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 		return DashboardResourceModel{}, fmt.Errorf("unable to normalize dashboard document: %w", err)
 	}
 
+	// Imported resources may not have overwrite set in state yet.
+	// Keep state stable with schema default behavior.
+	if overwrite.IsNull() || overwrite.IsUnknown() {
+		overwrite = types.BoolValue(false)
+	}
+
 	uid := in.UID
 	if uid == "" {
 		return DashboardResourceModel{}, errors.New("dashboard response is missing uid")
