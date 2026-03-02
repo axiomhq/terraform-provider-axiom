@@ -84,7 +84,7 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Internal dashboard identifier returned by the API.",
+				MarkdownDescription: "Dashboard identifier (same value as `uid`).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -392,7 +392,7 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 	}
 
 	return DashboardResourceModel{
-		ID:        types.StringValue(in.ID),
+		ID:        types.StringValue(uid),
 		UID:       types.StringValue(uid),
 		Dashboard: types.StringValue(normalizedDashboard),
 		Version:   types.Int64Value(in.Version),

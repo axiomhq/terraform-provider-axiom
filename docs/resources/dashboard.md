@@ -22,7 +22,7 @@ description: |-
 
 - `created_at` (String) Creation timestamp returned by the API.
 - `created_by` (String) Creator returned by the API.
-- `id` (String) Internal dashboard identifier returned by the API.
+- `id` (String) Dashboard identifier (same value as `uid`).
 - `updated_at` (String) Last update timestamp returned by the API.
 - `updated_by` (String) Last updater returned by the API.
 - `version` (Number) Monotonic dashboard version used for optimistic updates.

@@ -275,8 +275,8 @@ func TestFlattenDashboardResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if got.ID.ValueString() != "id-1" {
-		t.Fatalf("expected state id from response id, got %q", got.ID.ValueString())
+	if got.ID.ValueString() != "uid-1" {
+		t.Fatalf("expected state id to match uid, got %q", got.ID.ValueString())
 	}
 	if got.UID.ValueString() != "uid-1" {
 		t.Fatalf("expected state uid from response uid, got %q", got.UID.ValueString())
