@@ -54,7 +54,6 @@ func TestDashboardUpsertPayloadFromModel_CreateWithUID(t *testing.T) {
 		UID:       types.StringValue("uid_from_config"),
 		Dashboard: types.StringValue(`{"name":"dashboard"}`),
 		Overwrite: types.BoolValue(false),
-		Message:   types.StringValue("terraform create"),
 	}
 
 	payload, uid, diags := dashboardUpsertPayloadFromModel(plan, "", 0, true)
@@ -69,9 +68,6 @@ func TestDashboardUpsertPayloadFromModel_CreateWithUID(t *testing.T) {
 	}
 	if payload.Version != 0 {
 		t.Fatalf("expected no version on create, got %d", payload.Version)
-	}
-	if payload.Message != "terraform create" {
-		t.Fatalf("expected message in payload, got %q", payload.Message)
 	}
 }
 
@@ -171,13 +167,9 @@ func TestFlattenDashboardResource(t *testing.T) {
 		ID:        "id-1",
 		Version:   5,
 		Dashboard: json.RawMessage(`{"name":"dash"}`),
-		CreatedAt: "2026-01-01T00:00:00Z",
-		UpdatedAt: "2026-01-01T00:10:00Z",
-		CreatedBy: "alice@example.com",
-		UpdatedBy: "bob@example.com",
 	}
 
-	got, err := flattenDashboardResource(in, types.BoolValue(false), types.StringValue("msg"))
+	got, err := flattenDashboardResource(in, types.BoolValue(false))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -193,7 +185,7 @@ func TestFlattenDashboardResource(t *testing.T) {
 }
 
 func TestFlattenDashboardResource_MissingUID(t *testing.T) {
-	_, err := flattenDashboardResource(dashboardResourcePayload{ID: "id-1"}, types.BoolValue(false), types.StringNull())
+	_, err := flattenDashboardResource(dashboardResourcePayload{ID: "id-1"}, types.BoolValue(false))
 	if err == nil {
 		t.Fatal("expected error when uid is missing")
 	}

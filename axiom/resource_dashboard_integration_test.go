@@ -64,9 +64,6 @@ func TestAccAxiomDashboardResource_WithProvidedUID(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     uid,
-				ImportStateVerifyIgnore: []string{
-					"message",
-				},
 			},
 		},
 	})
@@ -134,9 +131,6 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 					return generatedUID, nil
 				},
 				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"message",
-				},
 			},
 		},
 	})
@@ -152,7 +146,6 @@ provider "axiom" {
 resource "axiom_dashboard" "test" {
   uid       = %q
   overwrite = %t
-  message   = "terraform apply"
   dashboard = jsonencode({
     name            = %q
     description     = "terraform acceptance dashboard"
@@ -176,7 +169,6 @@ provider "axiom" {
 
 resource "axiom_dashboard" "test" {
   overwrite = %t
-  message   = "terraform apply"
   dashboard = jsonencode({
     name            = %q
     description     = "terraform acceptance dashboard"

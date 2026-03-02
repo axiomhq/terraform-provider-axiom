@@ -38,7 +38,6 @@ type DashboardResourceModel struct {
 	Dashboard types.String `tfsdk:"dashboard"`
 	Version   types.Int64  `tfsdk:"version"`
 	Overwrite types.Bool   `tfsdk:"overwrite"`
-	Message   types.String `tfsdk:"message"`
 	CreatedAt types.String `tfsdk:"created_at"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
 	CreatedBy types.String `tfsdk:"created_by"`
@@ -50,7 +49,6 @@ type dashboardUpsertRequest struct {
 	UID       string          `json:"uid,omitempty"`
 	Version   int64           `json:"version,omitempty"`
 	Overwrite bool            `json:"overwrite,omitempty"`
-	Message   string          `json:"message,omitempty"`
 }
 
 type dashboardResourcePayload struct {
@@ -107,10 +105,6 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "When `true`, force update and ignore `version` conflicts.",
-			},
-			"message": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "Optional write note included in dashboard upsert requests.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
@@ -185,7 +179,7 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	state, err := flattenDashboardResource(created.Dashboard, plan.Overwrite, plan.Message)
+	state, err := flattenDashboardResource(created.Dashboard, plan.Overwrite)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create dashboard", err.Error())
 		return
@@ -228,7 +222,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	flattened, err := flattenDashboardResource(*dashboard, state.Overwrite, state.Message)
+	flattened, err := flattenDashboardResource(*dashboard, state.Overwrite)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read dashboard", err.Error())
 		return
@@ -277,7 +271,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	flattened, err := flattenDashboardResource(updated.Dashboard, plan.Overwrite, plan.Message)
+	flattened, err := flattenDashboardResource(updated.Dashboard, plan.Overwrite)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update dashboard", err.Error())
 		return
@@ -347,10 +341,6 @@ func dashboardUpsertPayloadFromModel(plan DashboardResourceModel, fallbackUID st
 		payload.Version = currentVersion
 	}
 
-	if !plan.Message.IsNull() && !plan.Message.IsUnknown() {
-		payload.Message = plan.Message.ValueString()
-	}
-
 	return payload, uid, diags
 }
 
@@ -366,7 +356,7 @@ func dashboardUIDFromState(state DashboardResourceModel) string {
 	return ""
 }
 
-func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool, message types.String) (DashboardResourceModel, error) {
+func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool) (DashboardResourceModel, error) {
 	normalizedDashboard, err := normalizeDashboardRaw(in.Dashboard)
 	if err != nil {
 		return DashboardResourceModel{}, fmt.Errorf("unable to normalize dashboard document: %w", err)
@@ -383,7 +373,6 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 		Dashboard: types.StringValue(normalizedDashboard),
 		Version:   types.Int64Value(in.Version),
 		Overwrite: overwrite,
-		Message:   message,
 		CreatedAt: types.StringValue(in.CreatedAt),
 		UpdatedAt: types.StringValue(in.UpdatedAt),
 		CreatedBy: types.StringValue(in.CreatedBy),

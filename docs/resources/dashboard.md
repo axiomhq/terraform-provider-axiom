@@ -15,7 +15,6 @@ description: |-
 
 ### Optional
 
-- `message` (String) Optional write note included in dashboard upsert requests.
 - `overwrite` (Boolean) When `true`, force update and ignore `version` conflicts.
 - `uid` (String) Stable dashboard identifier. If omitted, Axiom generates one.
 
