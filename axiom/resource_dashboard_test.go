@@ -123,6 +123,19 @@ func TestNormalizeDashboardRaw_RemovesEmptyOverridesWhenConfigUnavailable(t *tes
 	}
 }
 
+func TestNormalizeDashboardRaw_PreservesConfiguredOwnerCasing(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","owner":"x-axiom-everyone"}`),
+		types.StringValue(`{"name":"dashboard","owner":"X-AXIOM-EVERYONE"}`),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(got, `"owner":"X-AXIOM-EVERYONE"`) {
+		t.Fatalf("expected configured owner casing to be preserved, got %s", got)
+	}
+}
+
 func TestDashboardUpsertPayloadFromModel_CreateWithUID(t *testing.T) {
 	plan := DashboardResourceModel{
 		UID:       types.StringValue("uid_from_config"),

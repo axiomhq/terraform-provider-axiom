@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -451,6 +452,8 @@ func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string
 				delete(parsed, key)
 			}
 		}
+
+		normalizeConfiguredOwnerCase(parsed, configuredMap)
 	}
 
 	for field := range dashboardServerManagedFields {
@@ -525,6 +528,18 @@ func isEmptyMap(v any) bool {
 	}
 
 	return len(m) == 0
+}
+
+func normalizeConfiguredOwnerCase(parsed, configured map[string]any) {
+	parsedOwner, parsedOK := stringValueFromMap(parsed, "owner")
+	configuredOwner, configuredOK := stringValueFromMap(configured, "owner")
+	if !parsedOK || !configuredOK {
+		return
+	}
+
+	if strings.EqualFold(parsedOwner, configuredOwner) {
+		parsed["owner"] = configuredOwner
+	}
 }
 
 func addDashboardUpdateError(resp *resource.UpdateResponse, err error, uid string, localVersion int64) {
