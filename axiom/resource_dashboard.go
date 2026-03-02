@@ -444,6 +444,15 @@ func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string
 		return "", err
 	}
 
+	configuredMap, hasConfiguredMap := configuredDashboardMap(configured)
+	if hasConfiguredMap {
+		for key := range parsed {
+			if _, ok := configuredMap[key]; !ok {
+				delete(parsed, key)
+			}
+		}
+	}
+
 	for field := range dashboardServerManagedFields {
 		delete(parsed, field)
 	}
@@ -458,6 +467,19 @@ func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string
 	}
 
 	return string(normalized), nil
+}
+
+func configuredDashboardMap(configured types.String) (map[string]any, bool) {
+	if configured.IsNull() || configured.IsUnknown() || configured.ValueString() == "" {
+		return nil, false
+	}
+
+	parsed := make(map[string]any)
+	if err := json.Unmarshal([]byte(configured.ValueString()), &parsed); err != nil {
+		return nil, false
+	}
+
+	return parsed, true
 }
 
 func dashboardConfigHasUID(configured types.String) bool {

@@ -37,7 +37,7 @@ func TestNormalizeDashboardString_InvalidJSON(t *testing.T) {
 func TestNormalizeDashboardRaw(t *testing.T) {
 	got, err := normalizeDashboardRaw(
 		json.RawMessage(`{"schemaVersion":2,"name":"dashboard","id":"internal","version":"5"}`),
-		types.StringValue(`{"name":"dashboard"}`),
+		types.StringValue(`{"name":"dashboard","schemaVersion":2}`),
 	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -81,6 +81,19 @@ func TestNormalizeDashboardRaw_KeepsUIDWhenSetInConfig(t *testing.T) {
 	}
 	if !strings.Contains(got, `"uid":"configured"`) {
 		t.Fatalf("expected uid preserved in state when configured, got %s", got)
+	}
+}
+
+func TestNormalizeDashboardRaw_RemovesUnconfiguredTopLevelFields(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","owner":"X-AXIOM-EVERYONE","overrides":{}}`),
+		types.StringValue(`{"name":"dashboard"}`),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if strings.Contains(got, `"owner"`) || strings.Contains(got, `"overrides"`) {
+		t.Fatalf("expected unconfigured server fields removed, got %s", got)
 	}
 }
 
