@@ -33,17 +33,16 @@ type DashboardResource struct {
 }
 
 type DashboardResourceModel struct {
-	ID         types.String `tfsdk:"id"`
-	UID        types.String `tfsdk:"uid"`
-	Dashboard  types.String `tfsdk:"dashboard"`
-	Version    types.Int64  `tfsdk:"version"`
-	Overwrite  types.Bool   `tfsdk:"overwrite"`
-	Message    types.String `tfsdk:"message"`
-	InternalID types.String `tfsdk:"internal_id"`
-	CreatedAt  types.String `tfsdk:"created_at"`
-	UpdatedAt  types.String `tfsdk:"updated_at"`
-	CreatedBy  types.String `tfsdk:"created_by"`
-	UpdatedBy  types.String `tfsdk:"updated_by"`
+	ID        types.String `tfsdk:"id"`
+	UID       types.String `tfsdk:"uid"`
+	Dashboard types.String `tfsdk:"dashboard"`
+	Version   types.Int64  `tfsdk:"version"`
+	Overwrite types.Bool   `tfsdk:"overwrite"`
+	Message   types.String `tfsdk:"message"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
+	CreatedBy types.String `tfsdk:"created_by"`
+	UpdatedBy types.String `tfsdk:"updated_by"`
 }
 
 type dashboardUpsertRequest struct {
@@ -112,10 +111,6 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"message": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Optional write note included in dashboard upsert requests.",
-			},
-			"internal_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Internal dashboard identifier returned by the API.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
@@ -383,17 +378,16 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 	}
 
 	return DashboardResourceModel{
-		ID:         types.StringValue(uid),
-		UID:        types.StringValue(uid),
-		Dashboard:  types.StringValue(normalizedDashboard),
-		Version:    types.Int64Value(in.Version),
-		Overwrite:  overwrite,
-		Message:    message,
-		InternalID: types.StringValue(in.ID),
-		CreatedAt:  types.StringValue(in.CreatedAt),
-		UpdatedAt:  types.StringValue(in.UpdatedAt),
-		CreatedBy:  types.StringValue(in.CreatedBy),
-		UpdatedBy:  types.StringValue(in.UpdatedBy),
+		ID:        types.StringValue(in.ID),
+		UID:       types.StringValue(uid),
+		Dashboard: types.StringValue(normalizedDashboard),
+		Version:   types.Int64Value(in.Version),
+		Overwrite: overwrite,
+		Message:   message,
+		CreatedAt: types.StringValue(in.CreatedAt),
+		UpdatedAt: types.StringValue(in.UpdatedAt),
+		CreatedBy: types.StringValue(in.CreatedBy),
+		UpdatedBy: types.StringValue(in.UpdatedBy),
 	}, nil
 }
 

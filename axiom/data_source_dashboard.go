@@ -22,15 +22,14 @@ type DashboardDataSource struct {
 }
 
 type DashboardDataSourceModel struct {
-	ID         types.String `tfsdk:"id"`
-	UID        types.String `tfsdk:"uid"`
-	Dashboard  types.String `tfsdk:"dashboard"`
-	Version    types.Int64  `tfsdk:"version"`
-	InternalID types.String `tfsdk:"internal_id"`
-	CreatedAt  types.String `tfsdk:"created_at"`
-	UpdatedAt  types.String `tfsdk:"updated_at"`
-	CreatedBy  types.String `tfsdk:"created_by"`
-	UpdatedBy  types.String `tfsdk:"updated_by"`
+	ID        types.String `tfsdk:"id"`
+	UID       types.String `tfsdk:"uid"`
+	Dashboard types.String `tfsdk:"dashboard"`
+	Version   types.Int64  `tfsdk:"version"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
+	CreatedBy types.String `tfsdk:"created_by"`
+	UpdatedBy types.String `tfsdk:"updated_by"`
 }
 
 func (d *DashboardDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -72,10 +71,6 @@ func (d *DashboardDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 			"version": schema.Int64Attribute{
 				Computed:            true,
 				MarkdownDescription: "Monotonic dashboard version.",
-			},
-			"internal_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Internal dashboard identifier returned by the API.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
@@ -128,15 +123,14 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 
 	state := DashboardDataSourceModel{
-		UID:        types.StringValue(dashboard.UID),
-		ID:         types.StringValue(dashboard.UID),
-		Dashboard:  types.StringValue(dashboardJSON),
-		Version:    types.Int64Value(dashboard.Version),
-		InternalID: types.StringValue(dashboard.ID),
-		CreatedAt:  types.StringValue(dashboard.CreatedAt),
-		UpdatedAt:  types.StringValue(dashboard.UpdatedAt),
-		CreatedBy:  types.StringValue(dashboard.CreatedBy),
-		UpdatedBy:  types.StringValue(dashboard.UpdatedBy),
+		UID:       types.StringValue(dashboard.UID),
+		ID:        types.StringValue(dashboard.ID),
+		Dashboard: types.StringValue(dashboardJSON),
+		Version:   types.Int64Value(dashboard.Version),
+		CreatedAt: types.StringValue(dashboard.CreatedAt),
+		UpdatedAt: types.StringValue(dashboard.UpdatedAt),
+		CreatedBy: types.StringValue(dashboard.CreatedBy),
+		UpdatedBy: types.StringValue(dashboard.UpdatedBy),
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
