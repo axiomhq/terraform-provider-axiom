@@ -13,9 +13,12 @@ import (
 )
 
 func TestNormalizeDashboardString(t *testing.T) {
-	got, err := normalizeDashboardString(`{"name":"n","schemaVersion":2}`)
+	got, parsed, err := normalizeDashboardString(`{"name":"n","schemaVersion":2}`)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
+	}
+	if _, ok := parsed["name"]; !ok {
+		t.Fatal("expected parsed dashboard map")
 	}
 
 	var decoded map[string]any
@@ -25,14 +28,17 @@ func TestNormalizeDashboardString(t *testing.T) {
 }
 
 func TestNormalizeDashboardString_InvalidJSON(t *testing.T) {
-	_, err := normalizeDashboardString(`{"name":`)
+	_, _, err := normalizeDashboardString(`{"name":`)
 	if err == nil {
 		t.Fatal("expected JSON validation error")
 	}
 }
 
 func TestNormalizeDashboardRaw(t *testing.T) {
-	got, err := normalizeDashboardRaw(json.RawMessage(`{"schemaVersion":2,"name":"dashboard"}`))
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"schemaVersion":2,"name":"dashboard","id":"internal","version":"5"}`),
+		types.StringValue(`{"name":"dashboard"}`),
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -40,12 +46,41 @@ func TestNormalizeDashboardRaw(t *testing.T) {
 	if !strings.Contains(got, `"schemaVersion":2`) {
 		t.Fatalf("expected normalized JSON output, got %s", got)
 	}
+	if strings.Contains(got, `"id"`) || strings.Contains(got, `"version"`) {
+		t.Fatalf("expected server-managed fields to be removed, got %s", got)
+	}
 }
 
 func TestNormalizeDashboardRaw_Empty(t *testing.T) {
-	_, err := normalizeDashboardRaw(nil)
+	_, err := normalizeDashboardRaw(nil, types.StringNull())
 	if err == nil {
 		t.Fatal("expected error for empty payload")
+	}
+}
+
+func TestNormalizeDashboardRaw_RemovesUIDWhenUnsetInConfig(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","uid":"server-generated"}`),
+		types.StringValue(`{"name":"dashboard"}`),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if strings.Contains(got, `"uid"`) {
+		t.Fatalf("expected uid removed from state when not configured, got %s", got)
+	}
+}
+
+func TestNormalizeDashboardRaw_KeepsUIDWhenSetInConfig(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","uid":"configured"}`),
+		types.StringValue(`{"name":"dashboard","uid":"configured"}`),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(got, `"uid":"configured"`) {
+		t.Fatalf("expected uid preserved in state when configured, got %s", got)
 	}
 }
 
@@ -104,6 +139,34 @@ func TestDashboardUpsertPayloadFromModel_UpdateUsesStateUIDAndVersion(t *testing
 	}
 	if payload.Version != 7 {
 		t.Fatalf("expected payload version 7, got %d", payload.Version)
+	}
+}
+
+func TestDashboardUpsertPayloadFromModel_UsesUIDFromDashboardJSON(t *testing.T) {
+	plan := DashboardResourceModel{
+		Dashboard: types.StringValue(`{"name":"dashboard","uid":"uid-from-doc"}`),
+		Overwrite: types.BoolValue(false),
+	}
+
+	payload, uid, diags := dashboardUpsertPayloadFromModel(plan, "", 0, true)
+	if diags.HasError() {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if uid != "uid-from-doc" || payload.UID != "uid-from-doc" {
+		t.Fatalf("expected uid from dashboard document, got uid=%q payload.uid=%q", uid, payload.UID)
+	}
+}
+
+func TestDashboardUpsertPayloadFromModel_UIDMismatch(t *testing.T) {
+	plan := DashboardResourceModel{
+		UID:       types.StringValue("uid-from-attr"),
+		Dashboard: types.StringValue(`{"name":"dashboard","uid":"uid-from-doc"}`),
+		Overwrite: types.BoolValue(false),
+	}
+
+	_, _, diags := dashboardUpsertPayloadFromModel(plan, "", 0, true)
+	if !diags.HasError() {
+		t.Fatal("expected diagnostics for uid mismatch")
 	}
 }
 
@@ -169,7 +232,7 @@ func TestFlattenDashboardResource(t *testing.T) {
 		Dashboard: json.RawMessage(`{"name":"dash"}`),
 	}
 
-	got, err := flattenDashboardResource(in, types.BoolValue(false))
+	got, err := flattenDashboardResource(in, types.BoolValue(false), types.StringValue(`{"name":"dash"}`))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -185,7 +248,7 @@ func TestFlattenDashboardResource(t *testing.T) {
 }
 
 func TestFlattenDashboardResource_MissingUID(t *testing.T) {
-	_, err := flattenDashboardResource(dashboardResourcePayload{ID: "id-1"}, types.BoolValue(false))
+	_, err := flattenDashboardResource(dashboardResourcePayload{ID: "id-1"}, types.BoolValue(false), types.StringNull())
 	if err == nil {
 		t.Fatal("expected error when uid is missing")
 	}

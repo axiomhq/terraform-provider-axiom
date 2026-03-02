@@ -19,6 +19,15 @@ import (
 	"github.com/axiomhq/axiom-go/axiom"
 )
 
+var dashboardServerManagedFields = map[string]struct{}{
+	"id":        {},
+	"version":   {},
+	"createdAt": {},
+	"updatedAt": {},
+	"createdBy": {},
+	"updatedBy": {},
+}
+
 var (
 	_ resource.Resource                = &DashboardResource{}
 	_ resource.ResourceWithImportState = &DashboardResource{}
@@ -75,7 +84,7 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Dashboard identifier (same value as `uid`).",
+				MarkdownDescription: "Internal dashboard identifier returned by the API.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -179,7 +188,7 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	state, err := flattenDashboardResource(created.Dashboard, plan.Overwrite)
+	state, err := flattenDashboardResource(created.Dashboard, plan.Overwrite, plan.Dashboard)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create dashboard", err.Error())
 		return
@@ -222,7 +231,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	flattened, err := flattenDashboardResource(*dashboard, state.Overwrite)
+	flattened, err := flattenDashboardResource(*dashboard, state.Overwrite, state.Dashboard)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read dashboard", err.Error())
 		return
@@ -271,7 +280,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	flattened, err := flattenDashboardResource(updated.Dashboard, plan.Overwrite)
+	flattened, err := flattenDashboardResource(updated.Dashboard, plan.Overwrite, plan.Dashboard)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update dashboard", err.Error())
 		return
@@ -310,7 +319,7 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 func dashboardUpsertPayloadFromModel(plan DashboardResourceModel, fallbackUID string, currentVersion int64, isCreate bool) (dashboardUpsertRequest, string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	normalizedDashboard, err := normalizeDashboardString(plan.Dashboard.ValueString())
+	normalizedDashboard, dashboardMap, err := normalizeDashboardString(plan.Dashboard.ValueString())
 	if err != nil {
 		diags.AddError("Invalid dashboard JSON", fmt.Sprintf("`dashboard` must be valid JSON: %s", err))
 		return dashboardUpsertRequest{}, "", diags
@@ -319,6 +328,15 @@ func dashboardUpsertPayloadFromModel(plan DashboardResourceModel, fallbackUID st
 	uid := fallbackUID
 	if !plan.UID.IsNull() && !plan.UID.IsUnknown() {
 		uid = plan.UID.ValueString()
+	}
+
+	dashboardUID, hasDashboardUID := stringValueFromMap(dashboardMap, "uid")
+	if hasDashboardUID {
+		if uid != "" && uid != dashboardUID {
+			diags.AddError("UID mismatch", "`uid` must match `dashboard.uid` when both are set.")
+			return dashboardUpsertRequest{}, "", diags
+		}
+		uid = dashboardUID
 	}
 
 	payload := dashboardUpsertRequest{
@@ -356,8 +374,8 @@ func dashboardUIDFromState(state DashboardResourceModel) string {
 	return ""
 }
 
-func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool) (DashboardResourceModel, error) {
-	normalizedDashboard, err := normalizeDashboardRaw(in.Dashboard)
+func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool, configuredDashboard types.String) (DashboardResourceModel, error) {
+	normalizedDashboard, err := normalizeDashboardRaw(in.Dashboard, configuredDashboard)
 	if err != nil {
 		return DashboardResourceModel{}, fmt.Errorf("unable to normalize dashboard document: %w", err)
 	}
@@ -396,21 +414,21 @@ func decodeDashboardResource(raw []byte) (*dashboardResourcePayload, error) {
 	return out, nil
 }
 
-func normalizeDashboardString(raw string) (json.RawMessage, error) {
+func normalizeDashboardString(raw string) (json.RawMessage, map[string]any, error) {
 	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	normalized, err := json.Marshal(parsed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return normalized, nil
+	return normalized, parsed, nil
 }
 
-func normalizeDashboardRaw(raw json.RawMessage) (string, error) {
+func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string, error) {
 	if len(raw) == 0 {
 		return "", errors.New("dashboard payload is empty")
 	}
@@ -420,12 +438,48 @@ func normalizeDashboardRaw(raw json.RawMessage) (string, error) {
 		return "", err
 	}
 
+	for field := range dashboardServerManagedFields {
+		delete(parsed, field)
+	}
+
+	if !dashboardConfigHasUID(configured) {
+		delete(parsed, "uid")
+	}
+
 	normalized, err := json.Marshal(parsed)
 	if err != nil {
 		return "", err
 	}
 
 	return string(normalized), nil
+}
+
+func dashboardConfigHasUID(configured types.String) bool {
+	if configured.IsNull() || configured.IsUnknown() || configured.ValueString() == "" {
+		return false
+	}
+
+	parsed := make(map[string]any)
+	if err := json.Unmarshal([]byte(configured.ValueString()), &parsed); err != nil {
+		return false
+	}
+
+	_, ok := stringValueFromMap(parsed, "uid")
+	return ok
+}
+
+func stringValueFromMap(in map[string]any, key string) (string, bool) {
+	v, ok := in[key]
+	if !ok {
+		return "", false
+	}
+
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return "", false
+	}
+
+	return s, true
 }
 
 func addDashboardUpdateError(resp *resource.UpdateResponse, err error, uid string, localVersion int64) {

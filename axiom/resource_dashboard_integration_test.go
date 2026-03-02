@@ -136,6 +136,48 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 	})
 }
 
+func TestAccAxiomDashboardResource_UIDInDashboardDocument(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless TF_ACC is set")
+	}
+	testAccPreCheck(t)
+
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	uid := "tf-dashboard-doc-uid-" + strings.ReplaceAll(uuid.NewString(), "_", "-")
+	resourceName := "axiom_dashboard.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAxiomDashboardConfigDocumentUID(uid, "doc-uid-create", false, true),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, resourceName),
+					resource.TestCheckResourceAttr(resourceName, "uid", uid),
+				),
+			},
+			{
+				Config: testAccAxiomDashboardConfigDocumentUID(uid, "doc-uid-update", false, false),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, resourceName),
+					resource.TestCheckResourceAttr(resourceName, "uid", uid),
+					resource.TestCheckResourceAttrWith(resourceName, "dashboard", func(v string) error {
+						if strings.Contains(v, `"uid"`) {
+							return fmt.Errorf("expected dashboard JSON in state to omit uid when not configured, got %s", v)
+						}
+						return nil
+					}),
+				),
+			},
+		},
+	})
+}
+
 func testAccAxiomDashboardConfig(uid, name string, overwrite bool) string {
 	return fmt.Sprintf(`
 provider "axiom" {
@@ -181,6 +223,34 @@ resource "axiom_dashboard" "test" {
   })
 }
 `, os.Getenv("AXIOM_TOKEN"), os.Getenv("AXIOM_URL"), overwrite, name)
+}
+
+func testAccAxiomDashboardConfigDocumentUID(uid, name string, overwrite, includeUIDInDocument bool) string {
+	uidField := ""
+	if includeUIDInDocument {
+		uidField = fmt.Sprintf("uid             = %q\n", uid)
+	}
+
+	return fmt.Sprintf(`
+provider "axiom" {
+  api_token = %q
+  base_url  = %q
+}
+
+resource "axiom_dashboard" "test" {
+  overwrite = %t
+  dashboard = jsonencode({
+    %sname            = %q
+    description     = "terraform acceptance dashboard"
+    refreshTime     = 60
+    schemaVersion   = 2
+    timeWindowStart = "qr-now-1h"
+    timeWindowEnd   = "qr-now"
+    charts          = []
+    layout          = []
+  })
+}
+`, os.Getenv("AXIOM_TOKEN"), os.Getenv("AXIOM_URL"), overwrite, uidField, name)
 }
 
 func testAccCaptureDashboardUID(resourceName string, out *string) resource.TestCheckFunc {

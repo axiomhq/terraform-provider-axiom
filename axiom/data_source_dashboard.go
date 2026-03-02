@@ -62,7 +62,7 @@ func (d *DashboardDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Dashboard identifier (same value as `uid`).",
+				MarkdownDescription: "Internal dashboard identifier returned by the API.",
 			},
 			"dashboard": schema.StringAttribute{
 				Computed:            true,
@@ -116,7 +116,7 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	dashboardJSON, err := normalizeDashboardRaw(dashboard.Dashboard)
+	dashboardJSON, err := normalizeDashboardRaw(dashboard.Dashboard, types.StringValue(string(dashboard.Dashboard)))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read dashboard", fmt.Sprintf("Unable to normalize dashboard payload: %s", err))
 		return
