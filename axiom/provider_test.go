@@ -750,6 +750,14 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 				_, err = client.Tokens.Get(context.Background(), resource.Primary.ID)
 			case "axiom_virtual_field":
 				_, err = client.VirtualFields.Get(context.Background(), resource.Primary.ID)
+			case "axiom_dashboard":
+				uid := resource.Primary.Attributes["uid"]
+				if uid == "" {
+					uid = resource.Primary.ID
+				}
+				_, err = client.Dashboards.GetRaw(context.Background(), uid)
+			default:
+				continue
 			}
 			if err == nil {
 				return fmt.Errorf("resource %s still exists after destroy", id)
@@ -787,6 +795,14 @@ func testAccCheckAxiomResourcesExist(client *ax.Client, resourceName string) res
 			_, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
 		case "axiom_virtual_field":
 			_, err = client.VirtualFields.Get(context.Background(), rs.Primary.ID)
+		case "axiom_dashboard":
+			uid := rs.Primary.Attributes["uid"]
+			if uid == "" {
+				uid = rs.Primary.ID
+			}
+			_, err = client.Dashboards.GetRaw(context.Background(), uid)
+		default:
+			return fmt.Errorf("unsupported resource type in existence check: %s", rs.Type)
 		}
 
 		if err != nil {
