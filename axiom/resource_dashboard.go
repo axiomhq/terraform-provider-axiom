@@ -461,6 +461,14 @@ func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string
 		delete(parsed, "uid")
 	}
 
+	if overrides, ok := parsed["overrides"]; ok && isEmptyMap(overrides) {
+		if !hasConfiguredMap {
+			delete(parsed, "overrides")
+		} else if _, configuredHasOverrides := configuredMap["overrides"]; !configuredHasOverrides {
+			delete(parsed, "overrides")
+		}
+	}
+
 	normalized, err := json.Marshal(parsed)
 	if err != nil {
 		return "", err
@@ -508,6 +516,15 @@ func stringValueFromMap(in map[string]any, key string) (string, bool) {
 	}
 
 	return s, true
+}
+
+func isEmptyMap(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+
+	return len(m) == 0
 }
 
 func addDashboardUpdateError(resp *resource.UpdateResponse, err error, uid string, localVersion int64) {

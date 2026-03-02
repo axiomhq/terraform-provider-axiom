@@ -97,6 +97,32 @@ func TestNormalizeDashboardRaw_RemovesUnconfiguredTopLevelFields(t *testing.T) {
 	}
 }
 
+func TestNormalizeDashboardRaw_KeepsConfiguredOverrides(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","overrides":{"series":[]}}`),
+		types.StringValue(`{"name":"dashboard","overrides":{"series":[]}}`),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(got, `"overrides"`) {
+		t.Fatalf("expected configured overrides to be preserved, got %s", got)
+	}
+}
+
+func TestNormalizeDashboardRaw_RemovesEmptyOverridesWhenConfigUnavailable(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","overrides":{}}`),
+		types.StringNull(),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if strings.Contains(got, `"overrides"`) {
+		t.Fatalf("expected empty overrides to be removed, got %s", got)
+	}
+}
+
 func TestDashboardUpsertPayloadFromModel_CreateWithUID(t *testing.T) {
 	plan := DashboardResourceModel{
 		UID:       types.StringValue("uid_from_config"),
