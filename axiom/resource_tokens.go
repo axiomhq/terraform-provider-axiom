@@ -14,8 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -130,16 +128,10 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Computed:    true,
 				Sensitive:   true,
 				Description: "The token value to be used in API calls",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The unique identifier of the token to be used when interacting with the token",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
