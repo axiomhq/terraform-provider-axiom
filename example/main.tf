@@ -12,8 +12,25 @@ provider "axiom" {
 }
 
 resource "axiom_dataset" "test_dataset" {
-  name = "test_dataset"
+  name        = "test_dataset"
   description = "This is a test dataset created by Terraform."
+}
+
+resource "axiom_dashboard" "test_dashboard" {
+  uid       = "terraform-example-dashboard"
+  overwrite = false
+
+  dashboard = jsonencode({
+    name            = "Terraform Example Dashboard"
+    description     = "Basic dashboard managed by Terraform"
+    owner           = "X-AXIOM-EVERYONE"
+    refreshTime     = 60
+    schemaVersion   = 2
+    timeWindowStart = "qr-now-1h"
+    timeWindowEnd   = "qr-now"
+    charts          = []
+    layout          = []
+  })
 }
 
 resource "axiom_notifier" "test_slack_notifier" {
@@ -28,8 +45,8 @@ resource "axiom_notifier" "test_slack_notifier" {
 resource "axiom_virtual_field" "test" {
   name        = "VF"
   description = "my virtual field"
-  expression = "a * b"
-  dataset = "terraform-provider-dataset"
+  expression  = "a * b"
+  dataset     = "terraform-provider-dataset"
 }
 
 resource "axiom_notifier" "test_discord_notifier" {
@@ -37,7 +54,7 @@ resource "axiom_notifier" "test_discord_notifier" {
   properties = {
     discord = {
       discord_channel = "DISCORD_CHANNEL"
-      discord_token = "DISCORD_TOKEN"
+      discord_token   = "DISCORD_TOKEN"
     }
   }
 }
@@ -45,8 +62,8 @@ resource "axiom_notifier" "test_discord_notifier" {
 resource "axiom_notifier" "test_email_notifier" {
   name = "test_email_notifier"
   properties = {
-    email= {
-      emails = ["EMAIL1","EMAIL2"]
+    email = {
+      emails = ["EMAIL1", "EMAIL2"]
     }
   }
 }
