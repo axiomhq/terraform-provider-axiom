@@ -8,7 +8,7 @@ import (
 	"terraform-provider-axiom-provider/axiom"
 )
 
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-name axiom --rendered-provider-name axiom
 func main() {
 	err := tf6server.Serve(
 		"registry.terraform.io/axiom/axiom-provider",

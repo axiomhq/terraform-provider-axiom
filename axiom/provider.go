@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -15,9 +16,20 @@ import (
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
-const (
-	providerUserAgent = "terraform-provider-axiom/v1.4.6"
-)
+var providerVersion = "dev"
+
+func providerUserAgent() string {
+	version := strings.TrimSpace(providerVersion)
+	if version == "" {
+		version = "dev"
+	}
+
+	if !strings.HasPrefix(version, "v") {
+		version = fmt.Sprintf("v%s", version)
+	}
+
+	return fmt.Sprintf("terraform-provider-axiom/%s", version)
+}
 
 // Ensure the implementation satisfies the expected interfaces
 var (
@@ -94,7 +106,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	ops := []ax.Option{
 		ax.SetAPITokenConfig(apiToken),
-		ax.SetUserAgent(providerUserAgent),
+		ax.SetUserAgent(providerUserAgent()),
 	}
 
 	if baseUrl != "" {
