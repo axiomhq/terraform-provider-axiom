@@ -294,9 +294,6 @@ func TestFlattenDashboardResource(t *testing.T) {
 	if got.UID.ValueString() != "uid-1" {
 		t.Fatalf("expected state uid from response uid, got %q", got.UID.ValueString())
 	}
-	if got.Version.ValueInt64() != 5 {
-		t.Fatalf("expected version=5, got %d", got.Version.ValueInt64())
-	}
 }
 
 func TestFlattenDashboardResource_MissingUID(t *testing.T) {

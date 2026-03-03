@@ -43,7 +43,6 @@ func TestAccAxiomDashboardResource_WithProvidedUID(t *testing.T) {
 					testAccCheckAxiomResourcesExist(client, resourceName),
 					resource.TestCheckResourceAttr(resourceName, "uid", uid),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "version"),
 				),
 			},
 			{
@@ -96,7 +95,6 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 					testAccCheckAxiomResourcesExist(client, resourceName),
 					resource.TestCheckResourceAttrSet(resourceName, "uid"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "version"),
 					testAccCaptureDashboardUID(resourceName, &generatedUID),
 				),
 			},

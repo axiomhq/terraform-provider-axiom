@@ -21,7 +21,6 @@ description: |-
 ### Read-Only
 
 - `id` (String) Dashboard identifier (same value as `uid`).
-- `version` (Number) Monotonic dashboard version used for optimistic updates.
 
 ## Import
 

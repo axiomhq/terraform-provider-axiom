@@ -45,7 +45,6 @@ type DashboardResourceModel struct {
 	ID        types.String `tfsdk:"id"`
 	UID       types.String `tfsdk:"uid"`
 	Dashboard types.String `tfsdk:"dashboard"`
-	Version   types.Int64  `tfsdk:"version"`
 	Overwrite types.Bool   `tfsdk:"overwrite"`
 }
 
@@ -97,10 +96,6 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"dashboard": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The dashboard document as a JSON string (for example from `jsonencode(...)`).",
-			},
-			"version": schema.Int64Attribute{
-				Computed:            true,
-				MarkdownDescription: "Monotonic dashboard version used for optimistic updates.",
 			},
 			"overwrite": schema.BoolAttribute{
 				Optional:            true,
@@ -232,8 +227,33 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	stateVersion := state.Version.ValueInt64()
-	payload, uid, diags := dashboardUpsertPayloadFromModel(plan, dashboardUIDFromState(state), stateVersion, false)
+	uidFromState := dashboardUIDFromState(state)
+	stateVersion := int64(0)
+	if !plan.Overwrite.IsNull() && !plan.Overwrite.IsUnknown() && !plan.Overwrite.ValueBool() {
+		remote, err := r.client.Dashboards.GetRaw(ctx, uidFromState)
+		if err != nil {
+			if isNotFoundError(err) {
+				resp.Diagnostics.AddWarning(
+					"Dashboard Not Found",
+					fmt.Sprintf("Dashboard with UID %s does not exist and will be recreated if still defined in the configuration.", uidFromState),
+				)
+				resp.State.RemoveResource(ctx)
+				return
+			}
+
+			resp.Diagnostics.AddError("Failed to update dashboard", fmt.Sprintf("Unable to read current dashboard version: %s", err))
+			return
+		}
+
+		remoteDashboard, err := decodeDashboardResource(remote)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to update dashboard", fmt.Sprintf("Unable to decode current dashboard response: %s", err))
+			return
+		}
+
+		stateVersion = remoteDashboard.Version
+	}
+	payload, uid, diags := dashboardUpsertPayloadFromModel(plan, uidFromState, stateVersion, false)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -372,7 +392,6 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 		ID:        types.StringValue(uid),
 		UID:       types.StringValue(uid),
 		Dashboard: types.StringValue(normalizedDashboard),
-		Version:   types.Int64Value(in.Version),
 		Overwrite: overwrite,
 	}, nil
 }
