@@ -21,8 +21,6 @@ github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew
 github.com/apparentlymart/go-textseg/v15 v15.0.0/go.mod h1:K8XmNZdhEBkdlyDdvbmmsvpAG721bKi0joRfFdHIWJ4=
 github.com/armon/go-radix v1.0.0 h1:F4z6KzEeeQIMeLFa97iZU6vupzoecKdU5TX24SNppXI=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/axiomhq/axiom-go v0.30.1-0.20260302221843-730a5caed77b h1:nLWLStj574rof5GAH5lfuvNVK8zKCBXgtPJ4cgFgXSI=
-github.com/axiomhq/axiom-go v0.30.1-0.20260302221843-730a5caed77b/go.mod h1:v3/AhhycPhEvnujpKjZVH335GzmqEXFnn3oUQax5zuc=
 github.com/axiomhq/axiom-go v0.31.0 h1:w0DormV6Nduf5JiuEKCS4SRe+K2zoU/AdItjUCoNGOc=
 github.com/axiomhq/axiom-go v0.31.0/go.mod h1:v3/AhhycPhEvnujpKjZVH335GzmqEXFnn3oUQax5zuc=
 github.com/bgentry/speakeasy v0.1.0 h1:ByYyxL9InA1OWqxJqqp2A5pYHUrCiAL6K3J+LKSsQkY=
