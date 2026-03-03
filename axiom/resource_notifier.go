@@ -346,7 +346,7 @@ func (r *NotifierResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, mergeNotifierState(flattenNotifier(*notifier), plan))...)
 }
 
 func (r *NotifierResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -373,7 +373,7 @@ func (r *NotifierResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, mergeNotifierState(flattenNotifier(*notifier), plan))...)
 }
 
 func (r *NotifierResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -397,7 +397,7 @@ func (r *NotifierResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenNotifier(*notifier))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, mergeNotifierState(flattenNotifier(*notifier), plan))...)
 }
 
 func (r *NotifierResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -486,6 +486,26 @@ func flattenNotifier(notifier axiom.Notifier) NotifierResourceModel {
 		Name:       types.StringValue(notifier.Name),
 		Properties: buildNotifierProperties(notifier.Properties),
 	}
+}
+
+func mergeNotifierState(remote NotifierResourceModel, source NotifierResourceModel) NotifierResourceModel {
+	if remote.Properties == nil || source.Properties == nil {
+		return remote
+	}
+
+	if remote.Properties.Pagerduty == nil || source.Properties.Pagerduty == nil {
+		return remote
+	}
+
+	if remote.Properties.Pagerduty.RoutingKey.ValueString() == "" {
+		remote.Properties.Pagerduty.RoutingKey = source.Properties.Pagerduty.RoutingKey
+	}
+
+	if remote.Properties.Pagerduty.Token.ValueString() == "" {
+		remote.Properties.Pagerduty.Token = source.Properties.Pagerduty.Token
+	}
+
+	return remote
 }
 
 func buildNotifierProperties(properties axiom.NotifierProperties) *NotifierProperties {
