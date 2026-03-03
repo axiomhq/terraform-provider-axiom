@@ -14,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -25,6 +27,7 @@ import (
 var (
 	_ resource.Resource                = &TokenResource{}
 	_ resource.ResourceWithImportState = &TokenResource{}
+	_ resource.ResourceWithModifyPlan  = &TokenResource{}
 )
 
 const (
@@ -128,10 +131,16 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Computed:    true,
 				Sensitive:   true,
 				Description: "The token value to be used in API calls",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The unique identifier of the token to be used when interacting with the token",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
@@ -445,6 +454,44 @@ func (r *TokenResource) Configure(_ context.Context, req resource.ConfigureReque
 	}
 
 	r.client = client
+}
+
+func (r *TokenResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state TokensResourceModel
+	var plan TokensResourceModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !tokenWillRegenerate(plan, state) {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), types.StringUnknown())...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("token"), types.StringUnknown())...)
+}
+
+func tokenWillRegenerate(plan TokensResourceModel, state TokensResourceModel) bool {
+	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.ExpiresAt.Equal(state.ExpiresAt) {
+		return true
+	}
+
+	if !plan.DatasetCapabilities.Equal(state.DatasetCapabilities) {
+		return true
+	}
+
+	if !plan.OrgCapabilities.Equal(state.OrgCapabilities) {
+		return true
+	}
+
+	return false
 }
 
 func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
