@@ -34,9 +34,9 @@ const (
 	Read                           = "read"
 	Update                         = "update"
 	Delete                         = "delete"
-	defaultRotationGracePeriod     = 5 * time.Minute
+	defaultRotationGracePeriod     = 48 * time.Hour
 	rotationGracePeriodField       = "rotation_grace_period"
-	rotationGracePeriodDescription = "How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 5m when omitted."
+	rotationGracePeriodDescription = "How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted."
 )
 
 func NewTokenResource() resource.Resource {
