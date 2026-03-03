@@ -28,6 +28,8 @@ var dashboardServerManagedFields = map[string]struct{}{
 	"updatedBy": {},
 }
 
+const dashboardDefaultOwner = "x-axiom-everyone"
+
 var (
 	_ resource.Resource                = &DashboardResource{}
 	_ resource.ResourceWithImportState = &DashboardResource{}
@@ -447,6 +449,8 @@ func normalizeDashboardRaw(raw json.RawMessage, configured types.String) (string
 		normalizeConfiguredOwnerCase(parsed, configuredMap)
 	}
 
+	removeDefaultOwnerIfUnconfigured(parsed, configuredMap, hasConfiguredMap)
+
 	for field := range dashboardServerManagedFields {
 		delete(parsed, field)
 	}
@@ -531,6 +535,21 @@ func normalizeConfiguredOwnerCase(parsed, configured map[string]any) {
 	if strings.EqualFold(parsedOwner, configuredOwner) {
 		parsed["owner"] = configuredOwner
 	}
+}
+
+func removeDefaultOwnerIfUnconfigured(parsed, configured map[string]any, hasConfiguredMap bool) {
+	owner, ok := stringValueFromMap(parsed, "owner")
+	if !ok || !strings.EqualFold(owner, dashboardDefaultOwner) {
+		return
+	}
+
+	if hasConfiguredMap {
+		if _, configuredHasOwner := configured["owner"]; configuredHasOwner {
+			return
+		}
+	}
+
+	delete(parsed, "owner")
 }
 
 func addDashboardUpdateError(resp *resource.UpdateResponse, err error, uid string, localVersion int64) {

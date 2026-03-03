@@ -123,6 +123,19 @@ func TestNormalizeDashboardRaw_RemovesEmptyOverridesWhenConfigUnavailable(t *tes
 	}
 }
 
+func TestNormalizeDashboardRaw_RemovesDefaultOwnerWhenConfigUnavailable(t *testing.T) {
+	got, err := normalizeDashboardRaw(
+		json.RawMessage(`{"name":"dashboard","owner":"X-AXIOM-EVERYONE"}`),
+		types.StringNull(),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if strings.Contains(got, `"owner"`) {
+		t.Fatalf("expected default owner to be removed when not configured, got %s", got)
+	}
+}
+
 func TestNormalizeDashboardRaw_PreservesConfiguredOwnerCasing(t *testing.T) {
 	got, err := normalizeDashboardRaw(
 		json.RawMessage(`{"name":"dashboard","owner":"x-axiom-everyone"}`),

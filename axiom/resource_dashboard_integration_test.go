@@ -63,10 +63,7 @@ func TestAccAxiomDashboardResource_WithProvidedUID(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     uid,
-				ImportStateVerifyIgnore: []string{
-					"dashboard",
-				},
-				ImportStateCheck: testAccCheckImportedDashboardState(uid, updatedName, nil),
+				ImportStateCheck:  testAccCheckImportedDashboardState(uid, updatedName, nil),
 			},
 		},
 	})
@@ -103,7 +100,7 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccAxiomDashboardConfigWithoutUID(updatedName, true),
+				Config: testAccAxiomDashboardConfigWithoutUID(updatedName, false),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAxiomResourcesExist(client, resourceName),
 					resource.TestCheckResourceAttrWith(resourceName, "uid", func(v string) error {
@@ -133,10 +130,6 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 					return generatedUID, nil
 				},
 				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"dashboard",
-					"overwrite",
-				},
 				ImportStateCheck: testAccCheckImportedDashboardState(generatedUID, updatedName, func(v string) error {
 					if v != "false" {
 						return fmt.Errorf("expected imported overwrite to default to false, got %q", v)
