@@ -8,7 +8,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X axiom/provider.providerVersion={{.Version}}
+      - -s -w -X terraform-provider-axiom-provider/axiom.providerVersion={{.Version}}
     goos:
       - darwin
       - freebsd
