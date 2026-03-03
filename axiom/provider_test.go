@@ -15,17 +15,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 func TestAccAxiomResources_basic(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
@@ -72,23 +70,20 @@ func TestAccAxiomResources_basic(t *testing.T) {
 }
 
 func TestAccAxiomResources_data(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	emailToAssert := "test@axiom.co"
 	n, err := client.Notifiers.Create(context.Background(), ax.Notifier{Name: "my notifier", Properties: ax.NotifierProperties{Email: &ax.EmailConfig{
 		Emails: []string{emailToAssert},
 	}}})
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	defer func() {
-		require.NoError(t, client.Notifiers.Delete(context.Background(), n.ID))
+		assert.NoError(t, client.Notifiers.Delete(context.Background(), n.ID))
 	}()
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -115,10 +110,8 @@ func TestAccAxiomResources_data(t *testing.T) {
 }
 
 func TestAccAxiomDataset_kind(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
@@ -180,13 +173,10 @@ func TestAccAxiomDataset_kind(t *testing.T) {
 }
 
 func TestAccAxiomResources_resolvable(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -239,10 +229,8 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 // outside Terraform, which is not ideal. It should handle 404 errors by marking the resource
 // as absent and allowing Terraform to recreate it.
 func TestAccAxiomResources_recreate_after_api_deletion(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	// Define the dataset and monitor names for consistent reference
 	datasetName := "new-dataset-recreate-" + uuid.NewString() // Add a random suffix to avoid conflicts
@@ -319,7 +307,6 @@ func TestAccAxiomResources_recreate_after_api_deletion(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -363,13 +350,10 @@ func TestAccAxiomResources_recreate_after_api_deletion(t *testing.T) {
 }
 
 func TestAccAxiomResources_capabilities(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -417,13 +401,10 @@ func TestAccAxiomResources_capabilities(t *testing.T) {
 }
 
 func TestAccAxiomResources_dataset_retention(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -510,16 +491,13 @@ func TestAccAxiomResources_dataset_retention(t *testing.T) {
 }
 
 func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	// Define the dataset name for consistent reference
 	datasetName := "new-dataset-mapfields-" + uuid.NewString() // Add a random suffix to avoid conflicts
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
@@ -682,10 +660,8 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 }
 
 func TestAccAxiomResources_dataset_map_kind(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
@@ -749,14 +725,6 @@ func TestAccAxiomResources_dataset_map_kind(t *testing.T) {
 func testAccPreCheck(t *testing.T) {
 	if os.Getenv("AXIOM_TOKEN") == "" {
 		t.Fatalf("AXIOM_TOKEN must be set for acceptance tests")
-	}
-}
-
-func testAccSkipUnlessEnabled(t *testing.T) {
-	t.Helper()
-
-	if os.Getenv("TF_ACC") == "" {
-		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
 	}
 }
 

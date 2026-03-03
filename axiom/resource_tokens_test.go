@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 
@@ -9,16 +10,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/stretchr/testify/require"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
 func TestAccTokenResource_TokenPersistence(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheck(t)

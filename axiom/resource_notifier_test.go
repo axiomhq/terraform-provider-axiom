@@ -8,17 +8,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNotifiers(t *testing.T) {
-	testAccSkipUnlessEnabled(t)
-
 	client, err := ax.NewClient()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
 		},
