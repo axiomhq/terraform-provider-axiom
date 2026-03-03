@@ -394,7 +394,7 @@ func TestAccAxiomResources_capabilities(t *testing.T) {
 						}
 					}
 				`,
-				ExpectError: regexp.MustCompile(`At\sleast\sone\sdataset\scapability\smust\sbe\sset`),
+				ExpectError: regexp.MustCompile(`(?i)at\s+least\s+one\s+(dataset\s+)?capability\s+must\s+be\s+set`),
 			},
 		},
 	})

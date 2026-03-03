@@ -62,7 +62,8 @@ func TestAccTokenResource_TokenPersistence(t *testing.T) {
 }
 
 func TestAccTokenResource_RegenerateOnUpdateWithRotationGracePeriod(t *testing.T) {
-	var client *ax.Client
+	client, err := ax.NewClient()
+	require.NoError(t, err)
 
 	resourceName := "axiom_token.test"
 	tokenName := fmt.Sprintf("test-token-rotate-%s", uuid.NewString())
@@ -72,9 +73,6 @@ func TestAccTokenResource_RegenerateOnUpdateWithRotationGracePeriod(t *testing.T
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheck(t)
-			var err error
-			client, err = ax.NewClient()
-			require.NoError(t, err)
 		},
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
