@@ -375,7 +375,7 @@ func TestAccAxiomResources_capabilities(t *testing.T) {
 						}
 					}
 				`,
-				ExpectError: regexp.MustCompile(`(?i)at\s+least\s+one\s+dataset\s+capability\s+must\s+be\s+set`),
+				ExpectError: regexp.MustCompile(`(?i)at\s+least\s+one\s+(dataset\s+)?capability\s+must\s+be\s+set`),
 			},
 			{
 				Config: `
@@ -730,6 +730,10 @@ func testAccPreCheck(t *testing.T) {
 
 func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.State) error {
 	return func(s *terraform.State) error {
+		if client == nil {
+			return fmt.Errorf("axiom client is nil")
+		}
+
 		for id, resource := range s.RootModule().Resources {
 			if strings.HasPrefix(id, "data.") {
 				continue

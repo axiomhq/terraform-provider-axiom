@@ -2,14 +2,15 @@ package axiom
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
@@ -73,7 +74,7 @@ func TestAccTokenResource_RegenerateOnUpdateWithRotationGracePeriod(t *testing.T
 			testAccPreCheck(t)
 			var err error
 			client, err = ax.NewClient()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		},
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
 			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
