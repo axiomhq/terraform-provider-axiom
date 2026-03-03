@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
@@ -59,25 +60,103 @@ func TestAccTokenResource_TokenPersistence(t *testing.T) {
 	})
 }
 
+func TestAccTokenResource_RegenerateOnUpdateWithRotationGracePeriod(t *testing.T) {
+	var client *ax.Client
+
+	resourceName := "axiom_token.test"
+	tokenName := fmt.Sprintf("test-token-rotate-%s", uuid.NewString())
+	var initialID string
+	var initialToken string
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAccPreCheck(t)
+			var err error
+			client, err = ax.NewClient()
+			assert.NoError(t, err)
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTokenResourceConfigWithDescription(tokenName, "before-rotation", ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", tokenName),
+					resource.TestCheckResourceAttr(resourceName, "description", "before-rotation"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttrSet(resourceName, "token"),
+					resource.TestCheckResourceAttrWith(resourceName, "id", func(value string) error {
+						if value == "" {
+							return fmt.Errorf("token id is empty")
+						}
+						initialID = value
+						return nil
+					}),
+					resource.TestCheckResourceAttrWith(resourceName, "token", func(value string) error {
+						if value == "" {
+							return fmt.Errorf("token value is empty")
+						}
+						initialToken = value
+						return nil
+					}),
+				),
+			},
+			{
+				Config: testAccTokenResourceConfigWithDescription(tokenName, "after-rotation", "2h"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", tokenName),
+					resource.TestCheckResourceAttr(resourceName, "description", "after-rotation"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttrSet(resourceName, "token"),
+					resource.TestCheckResourceAttrWith(resourceName, "id", func(value string) error {
+						if value == initialID {
+							return fmt.Errorf("expected token id to change after regenerate update, but remained %q", value)
+						}
+						return nil
+					}),
+					resource.TestCheckResourceAttrWith(resourceName, "token", func(value string) error {
+						if value == initialToken {
+							return fmt.Errorf("expected token value to change after regenerate update")
+						}
+						return nil
+					}),
+				),
+			},
+		},
+	})
+}
+
 func testAccTokenResourceConfig_basic(name string) string {
+	return testAccTokenResourceConfigWithDescription(name, "Test token for persistence", "")
+}
+
+func testAccTokenResourceConfigWithDescription(name, description, rotationGracePeriod string) string {
+	rotationGracePeriodConfig := ""
+	if rotationGracePeriod != "" {
+		rotationGracePeriodConfig = fmt.Sprintf("\n                rotation_grace_period = %q", rotationGracePeriod)
+	}
+
 	return fmt.Sprintf(`
 			provider "axiom" {
 			api_token = "`+os.Getenv("AXIOM_TOKEN")+`"
 			base_url  = "`+os.Getenv("AXIOM_URL")+`"
-		}
+			}
 
 		resource "axiom_token" "test" {
-		name        = %[1]q
-		description = "Test token for persistence"
+                name        = %[1]q
+		description = %[2]q
 		dataset_capabilities = {
-			"*" = {
-			ingest = ["create"]
-			query  = ["read"]
-			}
-		}
-		org_capabilities = {
-			api_tokens = ["create", "read"]
-		}
-		}
-`, name)
+                        "*" = {
+                        ingest = ["create"]
+                        query  = ["read"]
+                        }
+                }
+                org_capabilities = {
+                        api_tokens = ["create", "read"]
+                }
+                %[3]s
+                }
+`, name, description, rotationGracePeriodConfig)
 }
