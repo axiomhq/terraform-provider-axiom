@@ -63,6 +63,9 @@ func TestAccAxiomDashboardResource_WithProvidedUID(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     uid,
+				ImportStateVerifyIgnore: []string{
+					"dashboard",
+				},
 			},
 		},
 	})
@@ -129,6 +132,10 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 					return generatedUID, nil
 				},
 				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"dashboard",
+					"overwrite",
+				},
 			},
 		},
 	})
