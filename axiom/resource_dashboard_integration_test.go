@@ -66,6 +66,7 @@ func TestAccAxiomDashboardResource_WithProvidedUID(t *testing.T) {
 				ImportStateVerifyIgnore: []string{
 					"dashboard",
 				},
+				ImportStateCheck: testAccCheckImportedDashboardState(uid, updatedName, nil),
 			},
 		},
 	})
@@ -136,6 +137,12 @@ func TestAccAxiomDashboardResource_ServerGeneratedUID(t *testing.T) {
 					"dashboard",
 					"overwrite",
 				},
+				ImportStateCheck: testAccCheckImportedDashboardState(generatedUID, updatedName, func(v string) error {
+					if v != "false" {
+						return fmt.Errorf("expected imported overwrite to default to false, got %q", v)
+					}
+					return nil
+				}),
 			},
 		},
 	})
@@ -271,6 +278,35 @@ func testAccCaptureDashboardUID(resourceName string, out *string) resource.TestC
 		}
 
 		*out = uid
+		return nil
+	}
+}
+
+func testAccCheckImportedDashboardState(expectedUID, expectedName string, overwriteCheck func(string) error) resource.ImportStateCheckFunc {
+	return func(states []*terraform.InstanceState) error {
+		if len(states) != 1 {
+			return fmt.Errorf("expected exactly one imported instance state, got %d", len(states))
+		}
+
+		attrs := states[0].Attributes
+		if attrs["uid"] != expectedUID {
+			return fmt.Errorf("expected imported uid %q, got %q", expectedUID, attrs["uid"])
+		}
+
+		dashboardJSON := attrs["dashboard"]
+		if dashboardJSON == "" {
+			return fmt.Errorf("expected imported dashboard JSON to be present")
+		}
+		if !strings.Contains(dashboardJSON, expectedName) {
+			return fmt.Errorf("expected imported dashboard JSON to include name %q, got %s", expectedName, dashboardJSON)
+		}
+
+		if overwriteCheck != nil {
+			if err := overwriteCheck(attrs["overwrite"]); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 }
