@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -48,10 +47,6 @@ type DashboardResourceModel struct {
 	Dashboard types.String `tfsdk:"dashboard"`
 	Version   types.Int64  `tfsdk:"version"`
 	Overwrite types.Bool   `tfsdk:"overwrite"`
-	CreatedAt types.String `tfsdk:"created_at"`
-	UpdatedAt types.String `tfsdk:"updated_at"`
-	CreatedBy types.String `tfsdk:"created_by"`
-	UpdatedBy types.String `tfsdk:"updated_by"`
 }
 
 type dashboardUpsertRequest struct {
@@ -106,31 +101,12 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"version": schema.Int64Attribute{
 				Computed:            true,
 				MarkdownDescription: "Monotonic dashboard version used for optimistic updates.",
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
-				},
 			},
 			"overwrite": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "When `true`, force update and ignore `version` conflicts.",
-			},
-			"created_at": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Creation timestamp returned by the API.",
-			},
-			"updated_at": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Last update timestamp returned by the API.",
-			},
-			"created_by": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Creator returned by the API.",
-			},
-			"updated_by": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Last updater returned by the API.",
 			},
 		},
 	}
@@ -398,10 +374,6 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 		Dashboard: types.StringValue(normalizedDashboard),
 		Version:   types.Int64Value(in.Version),
 		Overwrite: overwrite,
-		CreatedAt: types.StringValue(in.CreatedAt),
-		UpdatedAt: types.StringValue(in.UpdatedAt),
-		CreatedBy: types.StringValue(in.CreatedBy),
-		UpdatedBy: types.StringValue(in.UpdatedBy),
 	}, nil
 }
 
