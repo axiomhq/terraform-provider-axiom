@@ -160,9 +160,20 @@ func convertAttribute(resourceAttribute resourceschema.Attribute) datasourcesche
 }
 
 func isNotFoundError(err error) bool {
+	if errors.Is(err, axiom.ErrNotFound) {
+		return true
+	}
+
+	// Keep backward compatibility for callers that may wrap concrete HTTPError values.
 	var apiError axiom.HTTPError
 	if errors.As(err, &apiError) {
 		return apiError.Status == 404
 	}
+
+	var apiErrorPtr *axiom.HTTPError
+	if errors.As(err, &apiErrorPtr) && apiErrorPtr != nil {
+		return apiErrorPtr.Status == 404
+	}
+
 	return false
 }
