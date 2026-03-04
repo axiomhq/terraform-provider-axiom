@@ -5,6 +5,7 @@ NAME=axiom
 BINARY=terraform-provider-${NAME}
 GIT_TAG:=$(shell git describe --tags --exact-match 2>/dev/null)
 VERSION?=$(if $(GIT_TAG),$(patsubst v%,%,$(GIT_TAG)),dev)
+LOCAL_TEST_VERSION?=0.0.0-local
 LDFLAGS=-X terraform-provider-axiom-provider/axiom.providerVersion=${VERSION}
 OS_ARCH=darwin_arm64
 
@@ -33,6 +34,11 @@ generate:
 install: build
 	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
 	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
+
+install-local:
+	go build -ldflags "-X terraform-provider-axiom-provider/axiom.providerVersion=${LOCAL_TEST_VERSION}" -o ${BINARY}
+	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${LOCAL_TEST_VERSION}/${OS_ARCH}
+	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${LOCAL_TEST_VERSION}/${OS_ARCH}
 
 test:
 	go test -count=1 -parallel=4 ./...

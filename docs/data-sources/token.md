@@ -26,6 +26,7 @@ description: |-
 - `expires_at` (String) The time when the token expires. If not set, the token will not expire. Must be in RFC3339 format
 - `name` (String) The name of the token
 - `org_capabilities` (Attributes) The organisation capabilities available to the token (see [below for nested schema](#nestedatt--org_capabilities))
+- `rotation_grace_period` (String) How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted.
 - `token` (String) The token value to be used in API calls
 
 <a id="nestedatt--dataset_capabilities"></a>
