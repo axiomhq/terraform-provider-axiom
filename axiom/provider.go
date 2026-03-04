@@ -19,7 +19,7 @@ import (
 var providerVersion = "dev"
 
 func providerUserAgent() string {
-        version := strings.TrimSpace(providerVersion)
+	version := strings.TrimSpace(providerVersion)
 	if version == "" {
 		version = "dev"
 	}

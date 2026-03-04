@@ -21,11 +21,13 @@ description: |-
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `dataset_capabilities` (Attributes Map) The capabilities available to the token for each dataset (see [below for nested schema](#nestedatt--dataset_capabilities))
 - `description` (String) The description of the token
 - `expires_at` (String) The time when the token expires. If not set, the token will not expire. Must be in RFC3339 format
 - `org_capabilities` (Attributes) The organisation capabilities available to the token (see [below for nested schema](#nestedatt--org_capabilities))
-- `rotation_grace_period` (String, Write-Only) How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted.
+- `rotation_grace_period` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted.
 
 ### Read-Only
 
