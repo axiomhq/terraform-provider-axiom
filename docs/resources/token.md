@@ -25,6 +25,7 @@ description: |-
 - `description` (String) The description of the token
 - `expires_at` (String) The time when the token expires. If not set, the token will not expire. Must be in RFC3339 format
 - `org_capabilities` (Attributes) The organisation capabilities available to the token (see [below for nested schema](#nestedatt--org_capabilities))
+- `rotation_grace_period` (String, Write-Only) How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted.
 
 ### Read-Only
 

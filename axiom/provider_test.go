@@ -375,7 +375,7 @@ func TestAccAxiomResources_capabilities(t *testing.T) {
 						}
 					}
 				`,
-				ExpectError: regexp.MustCompile(`at\sleast\sone\scapability\smust\sbe\sset`),
+				ExpectError: regexp.MustCompile(`(?i)at\s+least\s+one\s+(dataset\s+)?capability\s+must\s+be\s+set`),
 			},
 			{
 				Config: `
@@ -394,7 +394,7 @@ func TestAccAxiomResources_capabilities(t *testing.T) {
 						}
 					}
 				`,
-				ExpectError: regexp.MustCompile(`At\sleast\sone\sdataset\scapability\smust\sbe\sset`),
+				ExpectError: regexp.MustCompile(`(?i)at\s+least\s+one\s+(dataset\s+)?capability\s+must\s+be\s+set`),
 			},
 		},
 	})
@@ -730,6 +730,10 @@ func testAccPreCheck(t *testing.T) {
 
 func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.State) error {
 	return func(s *terraform.State) error {
+		if client == nil {
+			return fmt.Errorf("axiom client is nil")
+		}
+
 		for id, resource := range s.RootModule().Resources {
 			if strings.HasPrefix(id, "data.") {
 				continue
@@ -747,6 +751,10 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 			case "axiom_virtual_field":
 				_, err = client.VirtualFields.Get(context.Background(), resource.Primary.ID)
 			}
+			if err == nil {
+				return fmt.Errorf("resource %s still exists after destroy", id)
+			}
+
 			datasetErr, ok := err.(ax.HTTPError)
 			if !ok {
 				return fmt.Errorf("could not assert error for %s as ax.HTTPError: %T", id, err)
