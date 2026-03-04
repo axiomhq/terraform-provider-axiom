@@ -182,6 +182,12 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// Set state immediately after creation to avoid orphaned resources
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if !plan.MapFields.IsUnknown() {
 		mapFields := axiom.MapFields{}
 		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
@@ -197,9 +203,8 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 
 		ds.MapFields = resMapFields
+		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
 func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -255,6 +260,12 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// Set state immediately after update to preserve changes
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if !plan.MapFields.IsUnknown() {
 		mapFields := axiom.MapFields{}
 		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
@@ -270,9 +281,8 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		ds.MapFields = resMapFields
+		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
 }
 
 func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

@@ -2,6 +2,7 @@ package axiom
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -15,9 +16,20 @@ import (
 	ax "github.com/axiomhq/axiom-go/axiom"
 )
 
-const (
-	providerUserAgent = "terraform-provider-axiom/v1.4.6"
-)
+var providerVersion = "dev"
+
+func providerUserAgent() string {
+	version := strings.TrimSpace(providerVersion)
+	if version == "" {
+		version = "dev"
+	}
+
+	if !strings.HasPrefix(version, "v") {
+		version = fmt.Sprintf("v%s", version)
+	}
+
+	return fmt.Sprintf("terraform-provider-axiom/%s", version)
+}
 
 // Ensure the implementation satisfies the expected interfaces
 var (
@@ -94,7 +106,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	ops := []ax.Option{
 		ax.SetAPITokenConfig(apiToken),
-		ax.SetUserAgent(providerUserAgent),
+		ax.SetUserAgent(providerUserAgent()),
 	}
 
 	if baseUrl != "" {
@@ -113,6 +125,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 // DataSources defines the data sources implemented in the provider.
 func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		NewDashboardDataSource,
 		NewDatasetDataSource,
 		NewMonitorDataSource,
 		NewNotifierDataSource,
@@ -125,6 +138,7 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 // Resources defines the resources implemented in the provider.
 func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewDashboardResource,
 		NewDatasetResource,
 		NewMonitorResource,
 		NewNotifierResource,

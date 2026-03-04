@@ -13,9 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -29,13 +27,17 @@ import (
 var (
 	_ resource.Resource                = &TokenResource{}
 	_ resource.ResourceWithImportState = &TokenResource{}
+	_ resource.ResourceWithModifyPlan  = &TokenResource{}
 )
 
 const (
-	Create = "create"
-	Read   = "read"
-	Update = "update"
-	Delete = "delete"
+	Create                         = "create"
+	Read                           = "read"
+	Update                         = "update"
+	Delete                         = "delete"
+	defaultRotationGracePeriod     = 48 * time.Hour
+	rotationGracePeriodField       = "rotation_grace_period"
+	rotationGracePeriodDescription = "How long the previous token remains valid when this token is regenerated during an update (for example: 30s, 5m, 1h). Defaults to 48h when omitted."
 )
 
 func NewTokenResource() resource.Resource {
@@ -53,6 +55,7 @@ type TokensResourceModel struct {
 	Name                types.String `tfsdk:"name"`
 	Description         types.String `tfsdk:"description"`
 	ExpiresAt           types.String `tfsdk:"expires_at"`
+	RotationGracePeriod types.String `tfsdk:"rotation_grace_period"`
 	DatasetCapabilities types.Map    `tfsdk:"dataset_capabilities"`
 	OrgCapabilities     types.Object `tfsdk:"org_capabilities"`
 	Token               types.String `tfsdk:"token"`
@@ -142,31 +145,24 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "The name of the token",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "The description of the token",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"expires_at": schema.StringAttribute{
 				Optional:    true,
 				Description: "The time when the token expires. If not set, the token will not expire. Must be in RFC3339 format",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+			},
+			"rotation_grace_period": schema.StringAttribute{
+				Optional:    true,
+				WriteOnly:   true,
+				Description: rotationGracePeriodDescription,
 			},
 			"dataset_capabilities": schema.MapNestedAttribute{
 				MarkdownDescription: "The capabilities available to the token for each dataset",
 				Optional:            true,
 				Computed:            true,
-				PlanModifiers: []planmodifier.Map{
-					mapplanmodifier.RequiresReplace(),
-				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"ingest": schema.ListAttribute{
@@ -178,9 +174,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listvalidator.ValueStringsAre(
 									stringvalidator.OneOf(Create),
 								),
-							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
 							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
@@ -194,9 +187,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 									stringvalidator.OneOf(Read),
 								),
 							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
-							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"starred_queries": schema.ListAttribute{
@@ -208,9 +198,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listvalidator.ValueStringsAre(
 									stringvalidator.OneOf(Create, Read, Update, Delete),
 								),
-							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
 							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
@@ -224,9 +211,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 									stringvalidator.OneOf(Create, Read, Update, Delete),
 								),
 							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
-							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"data": schema.ListAttribute{
@@ -238,9 +222,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listvalidator.ValueStringsAre(
 									stringvalidator.OneOf(Delete),
 								),
-							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
 							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
@@ -254,9 +235,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 									stringvalidator.OneOf(Update),
 								),
 							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
-							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
 						"vacuum": schema.ListAttribute{
@@ -268,9 +246,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								listvalidator.ValueStringsAre(
 									stringvalidator.OneOf(Update),
 								),
-							},
-							PlanModifiers: []planmodifier.List{
-								listplanmodifier.RequiresReplace(),
 							},
 							Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 						},
@@ -297,9 +272,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"api_tokens": schema.ListAttribute{
@@ -311,9 +283,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -327,9 +296,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Read),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"billing": schema.ListAttribute{
@@ -341,9 +307,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Read, Update),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -357,9 +320,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"datasets": schema.ListAttribute{
@@ -371,9 +331,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -387,9 +344,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"flows": schema.ListAttribute{
@@ -401,9 +355,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -417,9 +368,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"monitors": schema.ListAttribute{
@@ -431,9 +379,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -447,9 +392,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"rbac": schema.ListAttribute{
@@ -461,9 +403,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -477,9 +416,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.OneOf(Read, Update),
 							),
 						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
-						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"users": schema.ListAttribute{
@@ -491,9 +427,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
 							),
-						},
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.RequiresReplace(),
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
@@ -523,6 +456,44 @@ func (r *TokenResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.client = client
 }
 
+func (r *TokenResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state TokensResourceModel
+	var plan TokensResourceModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !tokenWillRegenerate(plan, state) {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), types.StringUnknown())...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("token"), types.StringUnknown())...)
+}
+
+func tokenWillRegenerate(plan TokensResourceModel, state TokensResourceModel) bool {
+	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.ExpiresAt.Equal(state.ExpiresAt) {
+		return true
+	}
+
+	if !plan.DatasetCapabilities.Equal(state.DatasetCapabilities) {
+		return true
+	}
+
+	if !plan.OrgCapabilities.Equal(state.OrgCapabilities) {
+		return true
+	}
+
+	return false
+}
+
 func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan TokensResourceModel
 
@@ -538,56 +509,13 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	datasetCapabilities, diags := extractDatasetCapabilities(ctx, plan)
+	tokenReq, diags := buildCreateTokenRequest(ctx, plan)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	orgCapabilities, diags := extractOrgCapabilities(ctx, plan.OrgCapabilities)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	tokenExpiry := time.Time{}
-	var err error
-	if !plan.ExpiresAt.IsNull() {
-		tokenExpiry, err = time.Parse(time.RFC3339, plan.ExpiresAt.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to parse token expiry time, got error: %s", err))
-			return
-		}
-		tokenExpiry = tokenExpiry.UTC()
-	}
-
-	// Check if there is at least one dataset capability for any dataset
-	hasDatasetCapability := false
-	for _, capabilities := range datasetCapabilities {
-		if !allEmpty(
-			capabilities.Ingest,
-			capabilities.Query,
-			capabilities.StarredQueries,
-			capabilities.VirtualFields,
-			capabilities.Data,
-			capabilities.Trim,
-			capabilities.Vacuum,
-		) {
-			hasDatasetCapability = true
-		}
-	}
-	if len(datasetCapabilities) > 0 && !hasDatasetCapability {
-		resp.Diagnostics.AddError("Client Error", "At least one dataset capability must be set")
-		return
-	}
-
-	token, err := r.client.Tokens.Create(ctx, axiom.CreateTokenRequest{
-		Name:                     plan.Name.ValueString(),
-		Description:              plan.Description.ValueString(),
-		ExpiresAt:                tokenExpiry,
-		DatasetCapabilities:      datasetCapabilities,
-		OrganisationCapabilities: *orgCapabilities,
-	})
+	token, err := r.client.Tokens.Create(ctx, tokenReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create token, got error: %s", err))
 		return
@@ -638,8 +566,51 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	resp.Diagnostics.Append(resp.State.Set(ctx, token)...)
 }
 
-func (r *TokenResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Update not supported", "Tokens cannot be updated. Please delete and recreate the token.")
+func (r *TokenResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan TokensResourceModel
+	var state TokensResourceModel
+	var config TokensResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if r.client == nil {
+		resp.Diagnostics.AddError("Client Error", "Client is not set")
+		return
+	}
+
+	newTokenReq, diags := buildCreateTokenRequest(ctx, plan)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	gracePeriod, diags := extractRotationGracePeriod(config)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	rotatedToken, err := r.client.Tokens.Regenerate(ctx, state.ID.ValueString(), axiom.RegenerateTokenRequest{
+		ExistingTokenExpiresAt: time.Now().UTC().Add(gracePeriod),
+		NewToken:               &newTokenReq,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to regenerate token, got error: %s", err))
+		return
+	}
+
+	updatedState, diags := flattenCreateTokenResponse(ctx, rotatedToken)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, updatedState)...)
 }
 
 func (r *TokenResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -660,6 +631,102 @@ func (r *TokenResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 func (r *TokenResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (axiom.CreateTokenRequest, diag.Diagnostics) {
+	datasetCapabilities, diags := extractDatasetCapabilities(ctx, plan)
+	if diags.HasError() {
+		return axiom.CreateTokenRequest{}, diags
+	}
+
+	orgCapabilities, diags := extractOrgCapabilities(ctx, plan.OrgCapabilities)
+	if diags.HasError() {
+		return axiom.CreateTokenRequest{}, diags
+	}
+
+	tokenExpiry, err := parseTokenExpiry(plan.ExpiresAt)
+	if err != nil {
+		diags.AddError("Client Error", fmt.Sprintf("Unable to parse token expiry time, got error: %s", err))
+		return axiom.CreateTokenRequest{}, diags
+	}
+
+	if err := validateDatasetCapabilities(datasetCapabilities); err != nil {
+		diags.AddError("Client Error", err.Error())
+		return axiom.CreateTokenRequest{}, diags
+	}
+
+	return axiom.CreateTokenRequest{
+		Name:                     plan.Name.ValueString(),
+		Description:              plan.Description.ValueString(),
+		ExpiresAt:                tokenExpiry,
+		DatasetCapabilities:      datasetCapabilities,
+		OrganisationCapabilities: *orgCapabilities,
+	}, diags
+}
+
+func parseTokenExpiry(expiry types.String) (time.Time, error) {
+	if expiry.IsNull() || expiry.IsUnknown() {
+		return time.Time{}, nil
+	}
+
+	parsed, err := time.Parse(time.RFC3339, expiry.ValueString())
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return parsed.UTC(), nil
+}
+
+func validateDatasetCapabilities(datasetCapabilities map[string]axiom.DatasetCapabilities) error {
+	hasDatasetCapability := false
+	for _, capabilities := range datasetCapabilities {
+		if !allEmpty(
+			capabilities.Ingest,
+			capabilities.Query,
+			capabilities.StarredQueries,
+			capabilities.VirtualFields,
+			capabilities.Data,
+			capabilities.Trim,
+			capabilities.Vacuum,
+		) {
+			hasDatasetCapability = true
+		}
+	}
+
+	if len(datasetCapabilities) > 0 && !hasDatasetCapability {
+		return fmt.Errorf("at least one dataset capability must be set")
+	}
+
+	return nil
+}
+
+func extractRotationGracePeriod(config TokensResourceModel) (time.Duration, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if config.RotationGracePeriod.IsNull() || config.RotationGracePeriod.IsUnknown() {
+		return defaultRotationGracePeriod, diags
+	}
+
+	gracePeriod, err := time.ParseDuration(config.RotationGracePeriod.ValueString())
+	if err != nil {
+		diags.AddAttributeError(
+			path.Root(rotationGracePeriodField),
+			"Invalid Rotation Grace Period",
+			fmt.Sprintf("Expected a valid Go duration such as 30s, 5m, or 1h, got %q: %s", config.RotationGracePeriod.ValueString(), err),
+		)
+		return 0, diags
+	}
+
+	if gracePeriod < 0 {
+		diags.AddAttributeError(
+			path.Root(rotationGracePeriodField),
+			"Invalid Rotation Grace Period",
+			"Rotation grace period must be zero or greater.",
+		)
+		return 0, diags
+	}
+
+	return gracePeriod, diags
 }
 
 func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
