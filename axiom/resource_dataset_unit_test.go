@@ -54,9 +54,21 @@ func TestFlattenDataset_EdgeDeployment(t *testing.T) {
 			Name:           "dataset-a",
 			Kind:           "axiom:events:v1",
 			EdgeDeployment: "cloud.eu-central-1.aws",
-		})
+		}, "")
 
 		assert.Equal(t, "cloud.eu-central-1.aws", state.EdgeDeployment.ValueString())
+	})
+
+	t.Run("uses org default edge deployment when dataset omits it", func(t *testing.T) {
+		t.Parallel()
+
+		state := flattenDataset(&axiom.Dataset{
+			ID:   "dataset-a",
+			Name: "dataset-a",
+			Kind: "axiom:events:v1",
+		}, "cloud.us-east-1.aws")
+
+		assert.Equal(t, "cloud.us-east-1.aws", state.EdgeDeployment.ValueString())
 	})
 
 	t.Run("keeps edge deployment null when absent", func(t *testing.T) {
@@ -66,9 +78,46 @@ func TestFlattenDataset_EdgeDeployment(t *testing.T) {
 			ID:   "dataset-a",
 			Name: "dataset-a",
 			Kind: "axiom:events:v1",
-		})
+		}, "")
 
 		assert.True(t, state.EdgeDeployment.IsNull())
+	})
+}
+
+func TestSelectDefaultEdgeDeployment(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns first default edge deployment", func(t *testing.T) {
+		t.Parallel()
+
+		selected := selectDefaultEdgeDeployment([]*axiom.Organization{
+			{DefaultEdgeDeployment: "cloud.eu-central-1.aws"},
+			{DefaultEdgeDeployment: "cloud.us-east-1.aws"},
+		})
+
+		assert.Equal(t, "cloud.eu-central-1.aws", selected)
+	})
+
+	t.Run("skips nil and empty organizations", func(t *testing.T) {
+		t.Parallel()
+
+		selected := selectDefaultEdgeDeployment([]*axiom.Organization{
+			nil,
+			{},
+			{DefaultEdgeDeployment: "cloud.us-east-1.aws"},
+		})
+
+		assert.Equal(t, "cloud.us-east-1.aws", selected)
+	})
+
+	t.Run("returns empty when none configured", func(t *testing.T) {
+		t.Parallel()
+
+		selected := selectDefaultEdgeDeployment([]*axiom.Organization{
+			{},
+		})
+
+		assert.Empty(t, selected)
 	})
 }
 

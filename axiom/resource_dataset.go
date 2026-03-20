@@ -185,8 +185,14 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
 	// Set state immediately after creation to avoid orphaned resources
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -206,7 +212,14 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 
 		ds.MapFields = resMapFields
-		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+
+		state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+			state = flattenDataset(ds, "")
+		}
+
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
 }
 
@@ -232,7 +245,13 @@ func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -263,8 +282,14 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
 	// Set state immediately after update to preserve changes
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -284,7 +309,14 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		ds.MapFields = resMapFields
-		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+
+		state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+			state = flattenDataset(ds, "")
+		}
+
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
 }
 
@@ -306,7 +338,7 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
+func flattenDataset(dataset *axiom.Dataset, defaultEdgeDeployment string) DatasetResourceModel {
 	var description types.String
 	var edgeDeployment types.String
 
@@ -316,6 +348,8 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 
 	if dataset.EdgeDeployment != "" {
 		edgeDeployment = types.StringValue(dataset.EdgeDeployment)
+	} else if defaultEdgeDeployment != "" {
+		edgeDeployment = types.StringValue(defaultEdgeDeployment)
 	}
 
 	mapFields := make([]attr.Value, 0, len(dataset.MapFields))
@@ -352,4 +386,42 @@ func edgeDeploymentValue(edgeDeployment types.String) string {
 	}
 
 	return edgeDeployment.ValueString()
+}
+
+func flattenDatasetWithOrgDefault(ctx context.Context, client *axiom.Client, dataset *axiom.Dataset) (DatasetResourceModel, error) {
+	if dataset.EdgeDeployment != "" {
+		return flattenDataset(dataset, ""), nil
+	}
+
+	defaultEdgeDeployment, err := fetchDefaultEdgeDeployment(ctx, client)
+	if err != nil {
+		return DatasetResourceModel{}, err
+	}
+
+	return flattenDataset(dataset, defaultEdgeDeployment), nil
+}
+
+func fetchDefaultEdgeDeployment(ctx context.Context, client *axiom.Client) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("client is not set")
+	}
+
+	organizations, err := client.Organizations.List(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not fetch organizations while resolving edge deployment: %w", err)
+	}
+
+	return selectDefaultEdgeDeployment(organizations), nil
+}
+
+func selectDefaultEdgeDeployment(organizations []*axiom.Organization) string {
+	for _, organization := range organizations {
+		if organization == nil || organization.DefaultEdgeDeployment == "" {
+			continue
+		}
+
+		return organization.DefaultEdgeDeployment
+	}
+
+	return ""
 }

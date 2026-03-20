@@ -71,5 +71,11 @@ func (d *DatasetDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	state, err := flattenDatasetWithOrgDefault(ctx, d.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
