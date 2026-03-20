@@ -44,6 +44,7 @@ type DatasetResourceModel struct {
 	Name               types.String `tfsdk:"name"`
 	Kind               types.String `tfsdk:"kind"`
 	Description        types.String `tfsdk:"description"`
+	EdgeDeployment     types.String `tfsdk:"edge_deployment"`
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
 	RetentionDays      types.Int64  `tfsdk:"retention_days"`
@@ -86,6 +87,14 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Dataset description",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"edge_deployment": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Edge deployment for the dataset (for example, 'cloud.eu-central-1.aws')",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -170,13 +179,7 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	ds, err := r.client.Datasets.Create(ctx, axiom.DatasetCreateRequest{
-		Name:               plan.Name.ValueString(),
-		Kind:               plan.Kind.ValueString(),
-		Description:        plan.Description.ValueString(),
-		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
-		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
-	})
+	ds, err := r.client.Datasets.Create(ctx, datasetCreateRequestFromPlan(plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
@@ -305,9 +308,14 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 
 func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 	var description types.String
+	var edgeDeployment types.String
 
 	if dataset.Description != "" {
 		description = types.StringValue(dataset.Description)
+	}
+
+	if dataset.EdgeDeployment != "" {
+		edgeDeployment = types.StringValue(dataset.EdgeDeployment)
 	}
 
 	mapFields := make([]attr.Value, 0, len(dataset.MapFields))
@@ -320,8 +328,28 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		Name:               types.StringValue(dataset.Name),
 		Kind:               types.StringValue(dataset.Kind),
 		Description:        description,
+		EdgeDeployment:     edgeDeployment,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
 		MapFields:          types.ListValueMust(types.StringType, mapFields),
 	}
+}
+
+func datasetCreateRequestFromPlan(plan DatasetResourceModel) axiom.DatasetCreateRequest {
+	return axiom.DatasetCreateRequest{
+		Name:               plan.Name.ValueString(),
+		Kind:               plan.Kind.ValueString(),
+		Description:        plan.Description.ValueString(),
+		EdgeDeployment:     edgeDeploymentValue(plan.EdgeDeployment),
+		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
+		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
+	}
+}
+
+func edgeDeploymentValue(edgeDeployment types.String) string {
+	if edgeDeployment.IsNull() || edgeDeployment.IsUnknown() {
+		return ""
+	}
+
+	return edgeDeployment.ValueString()
 }
