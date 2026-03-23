@@ -44,6 +44,7 @@ type DatasetResourceModel struct {
 	Name               types.String `tfsdk:"name"`
 	Kind               types.String `tfsdk:"kind"`
 	Description        types.String `tfsdk:"description"`
+	EdgeDeployment     types.String `tfsdk:"edge_deployment"`
 	ID                 types.String `tfsdk:"id"`
 	UseRetentionPeriod types.Bool   `tfsdk:"use_retention_period"`
 	RetentionDays      types.Int64  `tfsdk:"retention_days"`
@@ -86,6 +87,14 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Dataset description",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"edge_deployment": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Edge deployment for the dataset (for example, 'cloud.eu-central-1.aws')",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -170,20 +179,20 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	ds, err := r.client.Datasets.Create(ctx, axiom.DatasetCreateRequest{
-		Name:               plan.Name.ValueString(),
-		Kind:               plan.Kind.ValueString(),
-		Description:        plan.Description.ValueString(),
-		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
-		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
-	})
+	ds, err := r.client.Datasets.Create(ctx, datasetCreateRequestFromPlan(plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
 	}
 
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
 	// Set state immediately after creation to avoid orphaned resources
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -203,7 +212,14 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 
 		ds.MapFields = resMapFields
-		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+
+		state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+			state = flattenDataset(ds, "")
+		}
+
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
 }
 
@@ -229,7 +245,13 @@ func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -260,8 +282,14 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+		state = flattenDataset(ds, "")
+	}
+
 	// Set state immediately after update to preserve changes
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -281,7 +309,14 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		ds.MapFields = resMapFields
-		resp.Diagnostics.Append(resp.State.Set(ctx, flattenDataset(ds))...)
+
+		state, err := flattenDatasetWithOrgDefault(ctx, r.client, ds)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Unable to resolve default edge deployment", err.Error())
+			state = flattenDataset(ds, "")
+		}
+
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
 }
 
@@ -303,11 +338,18 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
+func flattenDataset(dataset *axiom.Dataset, defaultEdgeDeployment string) DatasetResourceModel {
 	var description types.String
+	var edgeDeployment types.String
 
 	if dataset.Description != "" {
 		description = types.StringValue(dataset.Description)
+	}
+
+	if dataset.EdgeDeployment != "" {
+		edgeDeployment = types.StringValue(dataset.EdgeDeployment)
+	} else if defaultEdgeDeployment != "" {
+		edgeDeployment = types.StringValue(defaultEdgeDeployment)
 	}
 
 	mapFields := make([]attr.Value, 0, len(dataset.MapFields))
@@ -320,8 +362,66 @@ func flattenDataset(dataset *axiom.Dataset) DatasetResourceModel {
 		Name:               types.StringValue(dataset.Name),
 		Kind:               types.StringValue(dataset.Kind),
 		Description:        description,
+		EdgeDeployment:     edgeDeployment,
 		UseRetentionPeriod: types.BoolValue(dataset.UseRetentionPeriod),
 		RetentionDays:      types.Int64Value(int64(dataset.RetentionDays)),
 		MapFields:          types.ListValueMust(types.StringType, mapFields),
 	}
+}
+
+func datasetCreateRequestFromPlan(plan DatasetResourceModel) axiom.DatasetCreateRequest {
+	return axiom.DatasetCreateRequest{
+		Name:               plan.Name.ValueString(),
+		Kind:               plan.Kind.ValueString(),
+		Description:        plan.Description.ValueString(),
+		EdgeDeployment:     edgeDeploymentValue(plan.EdgeDeployment),
+		UseRetentionPeriod: plan.UseRetentionPeriod.ValueBool(),
+		RetentionDays:      int(plan.RetentionDays.ValueInt64()),
+	}
+}
+
+func edgeDeploymentValue(edgeDeployment types.String) string {
+	if edgeDeployment.IsNull() || edgeDeployment.IsUnknown() {
+		return ""
+	}
+
+	return edgeDeployment.ValueString()
+}
+
+func flattenDatasetWithOrgDefault(ctx context.Context, client *axiom.Client, dataset *axiom.Dataset) (DatasetResourceModel, error) {
+	if dataset.EdgeDeployment != "" {
+		return flattenDataset(dataset, ""), nil
+	}
+
+	defaultEdgeDeployment, err := fetchDefaultEdgeDeployment(ctx, client)
+	if err != nil {
+		return DatasetResourceModel{}, err
+	}
+
+	return flattenDataset(dataset, defaultEdgeDeployment), nil
+}
+
+func fetchDefaultEdgeDeployment(ctx context.Context, client *axiom.Client) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("client is not set")
+	}
+
+	organizations, err := client.Organizations.List(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not fetch organizations while resolving edge deployment: %w", err)
+	}
+
+	return selectDefaultEdgeDeployment(organizations), nil
+}
+
+func selectDefaultEdgeDeployment(organizations []*axiom.Organization) string {
+	for _, organization := range organizations {
+		if organization == nil || organization.DefaultEdgeDeployment == "" {
+			continue
+		}
+
+		return organization.DefaultEdgeDeployment
+	}
+
+	return ""
 }
