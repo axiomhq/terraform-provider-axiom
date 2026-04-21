@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go mod download
@@ -26,7 +28,8 @@ builds:
         goos: windows
     binary: '{{ .ProjectName }}_{{ .Version }}'
 archives:
-  - format: zip
+  - formats:
+      - zip
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
@@ -45,4 +48,4 @@ release:
   #disable: true
   draft: false
 changelog:
-  skip: true
+  disable: true
