@@ -222,6 +222,42 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 	})
 }
 
+func TestAccAxiomResources_monitor_query_validation(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name = "monitor-query-validation"
+					}
+
+					resource "axiom_monitor" "test_monitor" {
+						depends_on = [axiom_dataset.test]
+
+						name             = "monitor query validation"
+						apl_query        = "['monitor-query-validation']"
+						mpl_query        = "monitor-query-validation:http_request_duration_seconds | align to 1m using avg"
+						type             = "MatchEvent"
+					}
+				`,
+				ExpectError: regexp.MustCompile(`(?i)(exactly one of apl_query or mpl_query must be configured|invalid attribute combination)`),
+			},
+		},
+	})
+}
+
 // TestAccAxiom_RecreateAfterAPIDeletion tests the behavior of the Axiom provider
 // when a monitor is deleted via the Axiom API (outside Terraform) and then Terraform
 // attempts to reapply the configuration.
