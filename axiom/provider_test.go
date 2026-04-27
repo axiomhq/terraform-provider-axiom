@@ -258,6 +258,58 @@ func TestAccAxiomResources_monitor_query_validation(t *testing.T) {
 	})
 }
 
+func TestAccAxiomResources_monitor_mpl_query_roundtrip(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	datasetName := "monitor-mpl-query-" + uuid.NewString()
+	monitorName := "monitor-mpl-query-" + uuid.NewString()
+
+	queryV1 := fmt.Sprintf("`%s`:`http_request_duration_seconds` | align to 1m using avg", datasetName)
+	queryV2 := fmt.Sprintf("`%s`:`http_request_duration_seconds` | align to 5s using avg", datasetName)
+
+	configV1 := testAccAxiomMonitorMPLQueryConfig(datasetName, monitorName, queryV1)
+	configV2 := testAccAxiomMonitorMPLQueryConfig(datasetName, monitorName, queryV2)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: configV1,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "name", monitorName),
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "mpl_query", queryV1),
+					resource.TestCheckNoResourceAttr("axiom_monitor.test_monitor", "apl_query"),
+				),
+			},
+			{
+				Config: configV1,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "mpl_query", queryV1),
+					resource.TestCheckNoResourceAttr("axiom_monitor.test_monitor", "apl_query"),
+				),
+			},
+			{
+				Config: configV2,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "mpl_query", queryV2),
+					resource.TestCheckNoResourceAttr("axiom_monitor.test_monitor", "apl_query"),
+				),
+			},
+			{
+				Config: configV2,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "mpl_query", queryV2),
+					resource.TestCheckNoResourceAttr("axiom_monitor.test_monitor", "apl_query"),
+				),
+			},
+		},
+	})
+}
+
 // TestAccAxiom_RecreateAfterAPIDeletion tests the behavior of the Axiom provider
 // when a monitor is deleted via the Axiom API (outside Terraform) and then Terraform
 // attempts to reapply the configuration.
@@ -904,6 +956,31 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 		}
 		return nil
 	}
+}
+
+func testAccAxiomMonitorMPLQueryConfig(datasetName, monitorName, mplQuery string) string {
+	return `
+provider "axiom" {
+  api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+  base_url  = "` + os.Getenv("AXIOM_URL") + `"
+}
+
+resource "axiom_dataset" "test" {
+  name = "` + datasetName + `"
+}
+
+resource "axiom_monitor" "test_monitor" {
+  depends_on = [axiom_dataset.test]
+
+  name             = "` + monitorName + `"
+  mpl_query        = "` + mplQuery + `"
+  interval_minutes = 5
+  operator         = "Above"
+  range_minutes    = 5
+  threshold        = 1
+  type             = "Threshold"
+}
+`
 }
 
 func testAccAxiomDatasetConfig_basic() string {
