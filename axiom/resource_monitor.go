@@ -46,6 +46,7 @@ type MonitorResourceModel struct {
 	AlertOnNoData                types.Bool    `tfsdk:"alert_on_no_data"`
 	NotifyByGroup                types.Bool    `tfsdk:"notify_by_group"`
 	APLQuery                     types.String  `tfsdk:"apl_query"`
+	MPLQuery                     types.String  `tfsdk:"mpl_query"`
 	DisabledUntil                types.String  `tfsdk:"disabled_until"`
 	IntervalMinutes              types.Int64   `tfsdk:"interval_minutes"`
 	NotifierIds                  types.List    `tfsdk:"notifier_ids"`
@@ -101,8 +102,22 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:             booldefault.StaticBool(false),
 			},
 			"apl_query": schema.StringAttribute{
-				MarkdownDescription: "The query used inside the monitor",
-				Required:            true,
+				MarkdownDescription: "The APL query used inside the monitor (mutually exclusive with mpl_query)",
+				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(path.Expressions{
+						path.MatchRoot("mpl_query"),
+					}...),
+				},
+			},
+			"mpl_query": schema.StringAttribute{
+				MarkdownDescription: "The MPL query used inside the monitor (mutually exclusive with apl_query)",
+				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(path.Expressions{
+						path.MatchRoot("apl_query"),
+					}...),
+				},
 			},
 			"disabled_until": schema.StringAttribute{
 				MarkdownDescription: "The time the monitor will be disabled until",
@@ -263,7 +278,7 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
 }
 
 func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -288,7 +303,7 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
 }
 
 func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -311,7 +326,7 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
 }
 
 func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -381,11 +396,22 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		return nil, diags
 	}
 
+	aplQuery := ""
+	if !plan.APLQuery.IsNull() && !plan.APLQuery.IsUnknown() {
+		aplQuery = plan.APLQuery.ValueString()
+	}
+
+	mplQuery := ""
+	if !plan.MPLQuery.IsNull() && !plan.MPLQuery.IsUnknown() {
+		mplQuery = plan.MPLQuery.ValueString()
+	}
+
 	return &axiom.Monitor{
 		Name:                         plan.Name.ValueString(),
 		AlertOnNoData:                plan.AlertOnNoData.ValueBool(),
 		NotifyByGroup:                plan.NotifyByGroup.ValueBool(),
-		APLQuery:                     plan.APLQuery.ValueString(),
+		APLQuery:                     aplQuery,
+		MPLQuery:                     mplQuery,
 		Description:                  plan.Description.ValueString(),
 		DisabledUntil:                disabledUntil,
 		Interval:                     time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
@@ -405,9 +431,11 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 	}, nil
 }
 
-func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
+func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) MonitorResourceModel {
 	var disabledUntil types.String
 	var description types.String
+	var aplQuery types.String
+	var mplQuery types.String
 
 	if !monitor.DisabledUntil.IsZero() {
 		disabledUntil = types.StringValue(monitor.DisabledUntil.Format(time.RFC3339))
@@ -416,13 +444,39 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 	if monitor.Description != "" {
 		description = types.StringValue(monitor.Description)
 	}
+
+	queryValue := monitor.APLQuery
+	queryFromMPL := false
+	if queryValue == "" && monitor.MPLQuery != "" {
+		queryValue = monitor.MPLQuery
+		queryFromMPL = true
+	}
+
+	if queryValue == "" && currentState != nil && !currentState.APLQuery.IsNull() && !currentState.APLQuery.IsUnknown() {
+		queryValue = currentState.APLQuery.ValueString()
+	}
+
+	preserveMPL := currentState != nil && !currentState.MPLQuery.IsNull() && !currentState.MPLQuery.IsUnknown() && currentState.MPLQuery.ValueString() != ""
+	if currentState == nil && queryFromMPL {
+		preserveMPL = true
+	}
+	if preserveMPL {
+		if queryValue == "" {
+			queryValue = currentState.MPLQuery.ValueString()
+		}
+		mplQuery = types.StringValue(queryValue)
+	} else if queryValue != "" {
+		aplQuery = types.StringValue(queryValue)
+	}
+
 	return MonitorResourceModel{
 		ID:                           types.StringValue(monitor.ID),
 		Name:                         types.StringValue(monitor.Name),
 		Description:                  description,
 		AlertOnNoData:                types.BoolValue(monitor.AlertOnNoData),
 		NotifyByGroup:                types.BoolValue(monitor.NotifyByGroup),
-		APLQuery:                     types.StringValue(monitor.APLQuery),
+		APLQuery:                     aplQuery,
+		MPLQuery:                     mplQuery,
 		DisabledUntil:                disabledUntil,
 		IntervalMinutes:              types.Int64Value(int64(monitor.Interval.Minutes())),
 		NotifierIds:                  flattenStringSlice(monitor.NotifierIDs),
@@ -445,6 +499,17 @@ func flattenMonitor(monitor *axiom.Monitor) MonitorResourceModel {
 
 func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+
+	hasAPLQuery := !plan.APLQuery.IsNull() && !plan.APLQuery.IsUnknown() && plan.APLQuery.ValueString() != ""
+	hasMPLQuery := !plan.MPLQuery.IsNull() && !plan.MPLQuery.IsUnknown() && plan.MPLQuery.ValueString() != ""
+
+	if hasAPLQuery == hasMPLQuery {
+		diags = append(diags, diag.NewErrorDiagnostic(
+			"Exactly one query field is required",
+			"Exactly one of apl_query or mpl_query must be configured.",
+		))
+	}
+
 	switch plan.Type.ValueString() {
 	case axiom.MonitorTypeThreshold.String():
 		if plan.IntervalMinutes.IsNull() {

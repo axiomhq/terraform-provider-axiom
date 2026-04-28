@@ -72,5 +72,5 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, nil))...)
 }
