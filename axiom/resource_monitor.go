@@ -47,6 +47,7 @@ type MonitorResourceModel struct {
 	NotifyByGroup                types.Bool    `tfsdk:"notify_by_group"`
 	APLQuery                     types.String  `tfsdk:"apl_query"`
 	MPLQuery                     types.String  `tfsdk:"mpl_query"`
+	Disabled                     types.Bool    `tfsdk:"disabled"`
 	DisabledUntil                types.String  `tfsdk:"disabled_until"`
 	IntervalMinutes              types.Int64   `tfsdk:"interval_minutes"`
 	NotifierIds                  types.List    `tfsdk:"notifier_ids"`
@@ -118,6 +119,12 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						path.MatchRoot("apl_query"),
 					}...),
 				},
+			},
+			"disabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether the monitor is disabled. When true, the monitor will not run or trigger alerts until re-enabled.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"disabled_until": schema.StringAttribute{
 				MarkdownDescription: "The time the monitor will be disabled until",
@@ -413,6 +420,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		APLQuery:                     aplQuery,
 		MPLQuery:                     mplQuery,
 		Description:                  plan.Description.ValueString(),
+		Disabled:                     plan.Disabled.ValueBool(),
 		DisabledUntil:                disabledUntil,
 		Interval:                     time.Duration(plan.IntervalMinutes.ValueInt64() * int64(time.Minute)),
 		NotifierIDs:                  notifierIds,
@@ -477,6 +485,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		NotifyByGroup:                types.BoolValue(monitor.NotifyByGroup),
 		APLQuery:                     aplQuery,
 		MPLQuery:                     mplQuery,
+		Disabled:                     types.BoolValue(monitor.Disabled),
 		DisabledUntil:                disabledUntil,
 		IntervalMinutes:              types.Int64Value(int64(monitor.Interval.Minutes())),
 		NotifierIds:                  flattenStringSlice(monitor.NotifierIDs),

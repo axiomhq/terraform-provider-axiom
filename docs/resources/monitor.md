@@ -27,6 +27,7 @@ description: |-
 - `compare_days` (Number) The number of days to compare for anomaly detection
 - `delay` (Number) The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)
 - `description` (String) Monitor description
+- `disabled` (Boolean) Whether the monitor is disabled. When true, the monitor will not run or trigger alerts until re-enabled.
 - `disabled_until` (String) The time the monitor will be disabled until
 - `interval_minutes` (Number) How often the monitor should run
 - `mpl_query` (String) The MPL query used inside the monitor (mutually exclusive with apl_query)
