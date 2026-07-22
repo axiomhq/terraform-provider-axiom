@@ -747,6 +747,72 @@ func TestAccAxiomResources_dataset_map_fields(t *testing.T) {
 	})
 }
 
+func TestAccAxiomResources_dataset_map_fields_metrics_kind(t *testing.T) {
+	client, err := ax.NewClient()
+	assert.NoError(t, err)
+
+	datasetName := "new-dataset-metrics-mapfields-" + uuid.NewString()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			// map-fields are not supported for metrics datasets
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name       = "` + datasetName + `"
+						kind       = "otel:metrics:v1"
+						map_fields = ["field1"]
+					}
+				`,
+				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sCombination`),
+			},
+			// an empty list is still an explicit map-fields configuration
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name       = "` + datasetName + `"
+						kind       = "otel:metrics:v1"
+						map_fields = []
+					}
+				`,
+				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sCombination`),
+			},
+			// omitting map-fields is fine
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name = "` + datasetName + `"
+						kind = "otel:metrics:v1"
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "kind", "otel:metrics:v1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccAxiomResources_dataset_map_kind(t *testing.T) {
 	client, err := ax.NewClient()
 	assert.NoError(t, err)
