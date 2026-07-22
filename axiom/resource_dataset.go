@@ -24,10 +24,14 @@ import (
 
 var validMapFieldNameRe = regexp.MustCompile("^[a-zA-Z0-9]+([a-zA-Z0-9_.-]*[a-zA-Z0-9]+)?$")
 
+// metricsDatasetKind is the dataset kind that does not support map fields.
+const metricsDatasetKind = "otel:metrics:v1"
+
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
 	_ resource.Resource                = &DatasetResource{}
 	_ resource.ResourceWithImportState = &DatasetResource{}
+	_ validator.List                   = unsupportedForKindValidator{}
 )
 
 func NewDatasetResource() resource.Resource {
@@ -125,7 +129,7 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"map_fields": schema.ListAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Map fields for the dataset",
+				MarkdownDescription: "Map fields for the dataset. Not supported for datasets of kind 'otel:metrics:v1'",
 				ElementType:         types.StringType,
 				Validators: []validator.List{
 					listvalidator.All(
@@ -136,11 +140,55 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							),
 						),
 						listvalidator.UniqueValues(),
+						unsupportedForKindValidator{kind: metricsDatasetKind},
 					),
 				},
 			},
 		},
 	}
+}
+
+// unsupportedForKindValidator rejects a list attribute that is set on a dataset of
+// an unsupported kind.
+type unsupportedForKindValidator struct {
+	kind string
+}
+
+func (v unsupportedForKindValidator) Description(_ context.Context) string {
+	return fmt.Sprintf("must not be set when kind is %q", v.kind)
+}
+
+func (v unsupportedForKindValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v unsupportedForKindValidator) ValidateList(ctx context.Context, req validator.ListRequest, resp *validator.ListResponse) {
+	var kind types.String
+
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("kind"), &kind)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !attributeConflictsWithKind(kind, req.ConfigValue, v.kind) {
+		return
+	}
+
+	resp.Diagnostics.AddAttributeError(
+		req.Path,
+		"Invalid Attribute Combination",
+		fmt.Sprintf("%s is not supported for datasets of kind %q, remove it from the configuration.", req.Path, v.kind),
+	)
+}
+
+// attributeConflictsWithKind reports whether the attribute is configured on a dataset
+// of the kind that does not support it.
+func attributeConflictsWithKind(kind types.String, value types.List, unsupportedKind string) bool {
+	if kind.IsNull() || kind.IsUnknown() || kind.ValueString() != unsupportedKind {
+		return false
+	}
+
+	return !value.IsNull() && !value.IsUnknown()
 }
 
 func (r *DatasetResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

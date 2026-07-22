@@ -3,6 +3,7 @@ package axiom
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 
@@ -118,6 +119,48 @@ func TestSelectDefaultEdgeDeployment(t *testing.T) {
 		})
 
 		assert.Empty(t, selected)
+	})
+}
+
+func TestAttributeConflictsWithKind(t *testing.T) {
+	t.Parallel()
+
+	mapFields := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("field1")})
+
+	t.Run("conflicts when map fields are set on a metrics dataset", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), mapFields, metricsDatasetKind))
+	})
+
+	t.Run("conflicts when map fields are empty on a metrics dataset", func(t *testing.T) {
+		t.Parallel()
+
+		empty := types.ListValueMust(types.StringType, []attr.Value{})
+
+		assert.True(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), empty, metricsDatasetKind))
+	})
+
+	t.Run("does not conflict when map fields are absent on a metrics dataset", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), types.ListNull(types.StringType), metricsDatasetKind))
+		assert.False(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), types.ListUnknown(types.StringType), metricsDatasetKind))
+	})
+
+	t.Run("does not conflict for other kinds", func(t *testing.T) {
+		t.Parallel()
+
+		for _, kind := range []string{"axiom:events:v1", "otel:traces:v1", "otel:logs:v1"} {
+			assert.False(t, attributeConflictsWithKind(types.StringValue(kind), mapFields, metricsDatasetKind), kind)
+		}
+	})
+
+	t.Run("does not conflict when kind is not known", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, attributeConflictsWithKind(types.StringNull(), mapFields, metricsDatasetKind))
+		assert.False(t, attributeConflictsWithKind(types.StringUnknown(), mapFields, metricsDatasetKind))
 	})
 }
 
