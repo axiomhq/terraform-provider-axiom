@@ -114,6 +114,26 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
 	})
+
+	t.Run("stores mpl_query when importing id-only state and api returns mpl_query", func(t *testing.T) {
+		t.Parallel()
+
+		mplOnlyMonitor := &axiom.Monitor{
+			ID:        "monitor-id",
+			Name:      "monitor-name",
+			MPLQuery:  "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg",
+			Type:      axiom.MonitorTypeThreshold,
+			Operator:  axiom.Above,
+			CreatedBy: "user-id",
+		}
+		importedState := MonitorResourceModel{
+			ID: types.StringValue("monitor-id"),
+		}
+
+		state := flattenMonitor(mplOnlyMonitor, &importedState)
+		assert.True(t, state.APLQuery.IsNull())
+		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
+	})
 }
 
 func TestUpgradeMonitorResourceStateV0_PreservesImportedID(t *testing.T) {

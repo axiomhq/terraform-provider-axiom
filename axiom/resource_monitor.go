@@ -460,16 +460,19 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		queryFromMPL = true
 	}
 
-	if queryValue == "" && currentState != nil && !currentState.APLQuery.IsNull() && !currentState.APLQuery.IsUnknown() {
+	hasAPLPreference := currentState != nil && !currentState.APLQuery.IsNull() && !currentState.APLQuery.IsUnknown() && currentState.APLQuery.ValueString() != ""
+	hasMPLPreference := currentState != nil && !currentState.MPLQuery.IsNull() && !currentState.MPLQuery.IsUnknown() && currentState.MPLQuery.ValueString() != ""
+
+	if queryValue == "" && hasAPLPreference {
 		queryValue = currentState.APLQuery.ValueString()
 	}
 
-	preserveMPL := currentState != nil && !currentState.MPLQuery.IsNull() && !currentState.MPLQuery.IsUnknown() && currentState.MPLQuery.ValueString() != ""
-	if currentState == nil && queryFromMPL {
-		preserveMPL = true
-	}
+	// Prefer mpl_query when the API only returned MPL, or when state already
+	// has mpl_query. Import / id-only state has neither preference, so an
+	// MPL-only API response must still land in mpl_query (not apl_query).
+	preserveMPL := hasMPLPreference || (queryFromMPL && !hasAPLPreference)
 	if preserveMPL {
-		if queryValue == "" {
+		if queryValue == "" && hasMPLPreference {
 			queryValue = currentState.MPLQuery.ValueString()
 		}
 		mplQuery = types.StringValue(queryValue)
