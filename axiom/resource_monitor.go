@@ -25,8 +25,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &MonitorResource{}
-	_ resource.ResourceWithImportState = &MonitorResource{}
+	_ resource.Resource                 = &MonitorResource{}
+	_ resource.ResourceWithImportState  = &MonitorResource{}
+	_ resource.ResourceWithUpgradeState = &MonitorResource{}
 )
 
 func NewMonitorResource() resource.Resource {
@@ -345,6 +346,41 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 func (r *MonitorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// UpgradeState accepts schema version 0, which is what Terraform and the
+// Pulumi Terraform bridge tag on ImportStatePassthroughID results, and copies
+// that state into the current version-1 schema so Read can hydrate the monitor.
+func (r *MonitorResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+
+	priorSchema := schemaResp.Schema
+	priorSchema.Version = 0
+
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &priorSchema,
+			StateUpgrader: upgradeMonitorResourceStateV0,
+		},
+	}
+}
+
+func upgradeMonitorResourceStateV0(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+	var prior MonitorResourceModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// ImportStatePassthroughID only sets id. A zero-value types.List has no
+	// element type and cannot be written back into the current schema.
+	if prior.NotifierIds.ElementType(ctx) == nil {
+		prior.NotifierIds = types.ListNull(types.StringType)
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, prior)...)
 }
 
 func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel) (*axiom.Monitor, diag.Diagnostics) {
