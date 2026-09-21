@@ -77,6 +77,15 @@ func (r *DashboardResource) Metadata(_ context.Context, req resource.MetadataReq
 }
 
 func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	// Schema version is 0 (the default). Pulumi imports tag state as version 0,
+	// which already matches, so the framework round-trips it without UpgradeState.
+	//
+	// When this schema moves to version 1:
+	//   - unchanged attributes: add ResourceWithUpgradeState and return
+	//     passthroughImportStateUpgraders (see axiom/state_upgrade.go).
+	//   - changed attributes: register a real version-0 upgrader whose PriorSchema
+	//     is this version-0 shape. Do not reuse the passthrough helper; it stamps
+	//     the *current* schema as version 0 and would misread old state.
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
