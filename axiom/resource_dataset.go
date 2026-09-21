@@ -29,9 +29,10 @@ const metricsDatasetKind = "otel:metrics:v1"
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &DatasetResource{}
-	_ resource.ResourceWithImportState = &DatasetResource{}
-	_ validator.List                   = unsupportedForKindValidator{}
+	_ resource.Resource                 = &DatasetResource{}
+	_ resource.ResourceWithImportState  = &DatasetResource{}
+	_ resource.ResourceWithUpgradeState = &DatasetResource{}
+	_ validator.List                    = unsupportedForKindValidator{}
 )
 
 func NewDatasetResource() resource.Resource {
@@ -384,6 +385,13 @@ func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// UpgradeState accepts schema version 0 (as tagged by the Pulumi Terraform
+// bridge when importing) and re-emits it under the current schema so Read can
+// hydrate the dataset. See passthroughImportStateUpgraders.
+func (r *DatasetResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return passthroughImportStateUpgraders(ctx, r)
 }
 
 func flattenDataset(dataset *axiom.Dataset, defaultEdgeDeployment string) DatasetResourceModel {

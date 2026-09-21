@@ -20,8 +20,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &NotifierResource{}
-	_ resource.ResourceWithImportState = &NotifierResource{}
+	_ resource.Resource                 = &NotifierResource{}
+	_ resource.ResourceWithImportState  = &NotifierResource{}
+	_ resource.ResourceWithUpgradeState = &NotifierResource{}
 )
 
 func NewNotifierResource() resource.Resource {
@@ -418,6 +419,13 @@ func (r *NotifierResource) Delete(ctx context.Context, req resource.DeleteReques
 
 func (r *NotifierResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// UpgradeState accepts schema version 0 (as tagged by the Pulumi Terraform
+// bridge when importing) and re-emits it under the current schema so Read can
+// hydrate the notifier. See passthroughImportStateUpgraders.
+func (r *NotifierResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return passthroughImportStateUpgraders(ctx, r)
 }
 
 func extractNotifier(ctx context.Context, plan NotifierResourceModel) (*axiom.Notifier, diag.Diagnostics) {

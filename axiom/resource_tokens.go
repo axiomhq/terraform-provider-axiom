@@ -25,9 +25,10 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TokenResource{}
-	_ resource.ResourceWithImportState = &TokenResource{}
-	_ resource.ResourceWithModifyPlan  = &TokenResource{}
+	_ resource.Resource                 = &TokenResource{}
+	_ resource.ResourceWithImportState  = &TokenResource{}
+	_ resource.ResourceWithModifyPlan   = &TokenResource{}
+	_ resource.ResourceWithUpgradeState = &TokenResource{}
 )
 
 const (
@@ -631,6 +632,13 @@ func (r *TokenResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 func (r *TokenResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// UpgradeState accepts schema version 0 (as tagged by the Pulumi Terraform
+// bridge when importing) and re-emits it under the current schema so Read can
+// hydrate the token. See passthroughImportStateUpgraders.
+func (r *TokenResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return passthroughImportStateUpgraders(ctx, r)
 }
 
 func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (axiom.CreateTokenRequest, diag.Diagnostics) {
