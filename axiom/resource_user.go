@@ -16,8 +16,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &UserResource{}
-	_ resource.ResourceWithImportState = &UserResource{}
+	_ resource.Resource                 = &UserResource{}
+	_ resource.ResourceWithImportState  = &UserResource{}
+	_ resource.ResourceWithUpgradeState = &UserResource{}
 )
 
 func NewUserResource() resource.Resource {
@@ -177,6 +178,10 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *UserResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return v0PassthroughUpgraders(ctx, r)
 }
 
 func flattenUser(user *axiom.User) UsersResourceModel {
