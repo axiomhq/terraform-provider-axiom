@@ -17,8 +17,9 @@ import (
 
 // Ensure provider-defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &VirtualFieldResource{}
-	_ resource.ResourceWithImportState = &VirtualFieldResource{}
+	_ resource.Resource                 = &VirtualFieldResource{}
+	_ resource.ResourceWithImportState  = &VirtualFieldResource{}
+	_ resource.ResourceWithUpgradeState = &VirtualFieldResource{}
 )
 
 // NewVirtualFieldResource creates a new VirtualFieldResource instance.
@@ -201,6 +202,10 @@ func (r *VirtualFieldResource) Delete(ctx context.Context, req resource.DeleteRe
 
 func (r *VirtualFieldResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *VirtualFieldResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return v0PassthroughUpgraders(ctx, r)
 }
 
 func flattenVirtualField(vfield *axiom.VirtualFieldWithID) VirtualFieldResourceModel {

@@ -25,8 +25,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &MonitorResource{}
-	_ resource.ResourceWithImportState = &MonitorResource{}
+	_ resource.Resource                 = &MonitorResource{}
+	_ resource.ResourceWithImportState  = &MonitorResource{}
+	_ resource.ResourceWithUpgradeState = &MonitorResource{}
 )
 
 func NewMonitorResource() resource.Resource {
@@ -345,6 +346,10 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 func (r *MonitorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *MonitorResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return v0PassthroughUpgraders(ctx, r)
 }
 
 func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel) (*axiom.Monitor, diag.Diagnostics) {
