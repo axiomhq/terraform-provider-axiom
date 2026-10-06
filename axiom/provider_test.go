@@ -904,6 +904,10 @@ func testAccCheckAxiomResourcesDestroyed(client *ax.Client) func(s *terraform.St
 				_, err = client.Tokens.Get(context.Background(), resource.Primary.ID)
 			case "axiom_virtual_field":
 				_, err = client.VirtualFields.Get(context.Background(), resource.Primary.ID)
+			case "axiom_role":
+				_, err = client.Roles.Get(context.Background(), resource.Primary.ID)
+			case "axiom_group":
+				_, err = client.Groups.Get(context.Background(), resource.Primary.ID)
 			case "axiom_dashboard":
 				uid := resource.Primary.Attributes["uid"]
 				if uid == "" {
@@ -949,6 +953,10 @@ func testAccCheckAxiomResourcesExist(client *ax.Client, resourceName string) res
 			_, err = client.Tokens.Get(context.Background(), rs.Primary.ID)
 		case "axiom_virtual_field":
 			_, err = client.VirtualFields.Get(context.Background(), rs.Primary.ID)
+		case "axiom_role":
+			_, err = client.Roles.Get(context.Background(), rs.Primary.ID)
+		case "axiom_group":
+			_, err = client.Groups.Get(context.Background(), rs.Primary.ID)
 		case "axiom_dashboard":
 			uid := rs.Primary.Attributes["uid"]
 			if uid == "" {

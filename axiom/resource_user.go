@@ -19,6 +19,7 @@ var (
 	_ resource.Resource                 = &UserResource{}
 	_ resource.ResourceWithImportState  = &UserResource{}
 	_ resource.ResourceWithUpgradeState = &UserResource{}
+	_ resource.ResourceWithModifyPlan   = &UserResource{}
 )
 
 func NewUserResource() resource.Resource {
@@ -58,7 +59,7 @@ func (r *UserResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"role": schema.StringAttribute{
-				MarkdownDescription: "Users role",
+				MarkdownDescription: "Users role: `none`, `read-only`, `user`, `admin`, `owner`, or the ID of an `axiom_role`",
 				Required:            true,
 			},
 			"id": schema.StringAttribute{
@@ -139,6 +140,30 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenUser(user))...)
 }
 
+// ModifyPlan rejects name changes at plan time. The API can't change the name
+// of another user, and a name changed by the user themselves shows up as drift.
+func (r *UserResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan, state UsersResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !plan.Name.IsUnknown() && !plan.Name.Equal(state.Name) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("name"),
+			"User name can't be changed",
+			fmt.Sprintf("The Axiom API can't change the name of another user. The current name is %q. "+
+				"Set name to the current value, or add `lifecycle { ignore_changes = [name] }`.", state.Name.ValueString()),
+		)
+	}
+}
+
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan UsersResourceModel
 
@@ -149,11 +174,13 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	user, err := r.client.Users.Update(ctx, plan.ID.ValueString(), axiom.UpdateUserRequest{
-		Name: plan.Name.ValueString(),
+	// ModifyPlan rejects name changes, so the role is the only attribute
+	// that can change in place.
+	user, err := r.client.Users.UpdateUsersRole(ctx, plan.ID.ValueString(), axiom.UpdateUserRoleRequest{
+		Role: plan.Role.ValueString(),
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("failed to update user", err.Error())
+		resp.Diagnostics.AddError("failed to update user role", err.Error())
 		return
 	}
 
