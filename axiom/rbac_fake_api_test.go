@@ -30,6 +30,12 @@ var builtinRoles = []string{"owner", "admin", "user", "read-only", "none"}
 func newFakeRBACAPI(t *testing.T, users ...*axiom.User) *httptest.Server {
 	t.Helper()
 
+	// axiom-go lets these variables override the provider configuration,
+	// which would send requests to a real deployment instead of the fake.
+	for _, env := range []string{"AXIOM_URL", "AXIOM_TOKEN", "AXIOM_ORG_ID", "AXIOM_EDGE_URL", "AXIOM_EDGE", "AXIOM_API_TOKEN", "AXIOM_BASE_URL"} {
+		t.Setenv(env, "")
+	}
+
 	api := &fakeRBACAPI{
 		roles:  map[string]*axiom.Role{},
 		groups: map[string]*axiom.Group{},
