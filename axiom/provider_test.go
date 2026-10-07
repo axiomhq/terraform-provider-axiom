@@ -1099,9 +1099,13 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 }
 
 func testAccAxiomMonitorTypeConfig(datasetName, monitorName, monitorType, aplQuery, description string) string {
+	// Match monitors run every minute over the last minute; the API sets both
+	// intervals, so only Threshold configures them.
 	thresholdFields := ""
 	if monitorType == "Threshold" {
 		thresholdFields = `
+  interval_minutes = 5
+  range_minutes    = 5
   operator         = "Above"
   threshold        = 1`
 	}
@@ -1121,9 +1125,7 @@ resource "axiom_monitor" "test_monitor" {
 
   name             = "` + monitorName + `"
   description      = "` + description + `"
-  apl_query        = "` + aplQuery + `"
-  interval_minutes = 5
-  range_minutes    = 5` + thresholdFields + `
+  apl_query        = "` + aplQuery + `"` + thresholdFields + `
   type             = "` + monitorType + `"
 }
 `
