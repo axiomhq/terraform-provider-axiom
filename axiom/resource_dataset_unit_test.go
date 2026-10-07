@@ -133,12 +133,12 @@ func TestAttributeConflictsWithKind(t *testing.T) {
 		assert.True(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), mapFields, metricsDatasetKind))
 	})
 
-	t.Run("conflicts when map fields are empty on a metrics dataset", func(t *testing.T) {
+	t.Run("does not conflict when map fields are empty on a metrics dataset", func(t *testing.T) {
 		t.Parallel()
 
 		empty := types.ListValueMust(types.StringType, []attr.Value{})
 
-		assert.True(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), empty, metricsDatasetKind))
+		assert.False(t, attributeConflictsWithKind(types.StringValue("otel:metrics:v1"), empty, metricsDatasetKind))
 	})
 
 	t.Run("does not conflict when map fields are absent on a metrics dataset", func(t *testing.T) {
@@ -184,4 +184,18 @@ func TestEdgeDeploymentValue(t *testing.T) {
 
 		assert.Equal(t, "cloud.eu-central-1.aws", edgeDeploymentValue(types.StringValue("cloud.eu-central-1.aws")))
 	})
+}
+
+func TestMapFieldsNeedUpdate(t *testing.T) {
+	t.Parallel()
+
+	empty := types.ListValueMust(types.StringType, []attr.Value{})
+	fields := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("field1")})
+
+	assert.False(t, mapFieldsNeedUpdate(types.ListUnknown(types.StringType), empty), "unknown plan")
+	assert.False(t, mapFieldsNeedUpdate(types.ListNull(types.StringType), fields), "null plan")
+	assert.False(t, mapFieldsNeedUpdate(empty, empty), "empty plan on dataset without map fields")
+	assert.False(t, mapFieldsNeedUpdate(fields, fields), "unchanged map fields")
+	assert.True(t, mapFieldsNeedUpdate(fields, empty), "added map fields")
+	assert.True(t, mapFieldsNeedUpdate(empty, fields), "removed map fields")
 }
