@@ -182,14 +182,19 @@ func (v unsupportedForKindValidator) ValidateList(ctx context.Context, req valid
 	)
 }
 
-// attributeConflictsWithKind reports whether the attribute is configured on a dataset
-// of the kind that does not support it.
+// attributeConflictsWithKind reports whether the attribute has elements on a dataset
+// of the kind that does not support it. An empty list matches the dataset and is allowed.
 func attributeConflictsWithKind(kind types.String, value types.List, unsupportedKind string) bool {
 	if kind.IsNull() || kind.IsUnknown() || kind.ValueString() != unsupportedKind {
 		return false
 	}
 
-	return !value.IsNull() && !value.IsUnknown()
+	return !value.IsNull() && !value.IsUnknown() && len(value.Elements()) > 0
+}
+
+// mapFieldsNeedUpdate reports whether the planned map fields differ from the dataset's current ones.
+func mapFieldsNeedUpdate(planned, current types.List) bool {
+	return !planned.IsUnknown() && !planned.IsNull() && !planned.Equal(current)
 }
 
 func (r *DatasetResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -246,7 +251,7 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	if !plan.MapFields.IsUnknown() {
+	if mapFieldsNeedUpdate(plan.MapFields, state.MapFields) {
 		mapFields := axiom.MapFields{}
 		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
 		if diags.HasError() {
@@ -343,7 +348,7 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	if !plan.MapFields.IsUnknown() {
+	if mapFieldsNeedUpdate(plan.MapFields, state.MapFields) {
 		mapFields := axiom.MapFields{}
 		diags := plan.MapFields.ElementsAs(ctx, &mapFields, false)
 		if diags.HasError() {

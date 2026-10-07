@@ -775,7 +775,7 @@ func TestAccAxiomResources_dataset_map_fields_metrics_kind(t *testing.T) {
 				`,
 				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sCombination`),
 			},
-			// an empty list is still an explicit map-fields configuration
+			// an empty list matches the dataset, so create succeeds without tainting it
 			{
 				Config: `
 					provider "axiom" {
@@ -789,7 +789,30 @@ func TestAccAxiomResources_dataset_map_fields_metrics_kind(t *testing.T) {
 						map_fields = []
 					}
 				`,
-				ExpectError: regexp.MustCompile(`Error:\sInvalid\sAttribute\sCombination`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "kind", "otel:metrics:v1"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "0"),
+				),
+			},
+			// updating other attributes with an empty list does not touch map-fields
+			{
+				Config: `
+					provider "axiom" {
+						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+						base_url  = "` + os.Getenv("AXIOM_URL") + `"
+					}
+
+					resource "axiom_dataset" "test" {
+						name        = "` + datasetName + `"
+						kind        = "otel:metrics:v1"
+						description = "updated"
+						map_fields  = []
+					}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_dataset.test", "description", "updated"),
+					resource.TestCheckResourceAttr("axiom_dataset.test", "map_fields.#", "0"),
+				),
 			},
 			// omitting map-fields is fine
 			{
