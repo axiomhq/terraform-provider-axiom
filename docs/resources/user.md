@@ -19,7 +19,7 @@ description: |-
 
 - `email` (String) Users email
 - `name` (String) Users name
-- `role` (String) Users role
+- `role` (String) Users role: `none`, `read-only`, `user`, `admin`, `owner`, or the ID of an `axiom_role`
 
 ### Read-Only
 

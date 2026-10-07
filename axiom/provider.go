@@ -130,6 +130,7 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 		NewMonitorDataSource,
 		NewNotifierDataSource,
 		NewUserDataSource,
+		NewUsersDataSource,
 		NewTokenDataSource,
 		NewVirtualFieldDataSource,
 	}
@@ -143,6 +144,9 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewMonitorResource,
 		NewNotifierResource,
 		NewUserResource,
+		NewUserRoleResource,
+		NewRoleResource,
+		NewGroupResource,
 		NewTokenResource,
 		NewVirtualFieldResource,
 	}
