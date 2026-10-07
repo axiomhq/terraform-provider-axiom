@@ -30,6 +30,11 @@ var (
 	_ resource.ResourceWithUpgradeState = &MonitorResource{}
 )
 
+// monitorTypeDescription describes the monitor type attribute. The resource
+// adds a note that changing the type replaces the monitor; the data source,
+// which shares the schema, uses this text alone.
+const monitorTypeDescription = "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'"
+
 func NewMonitorResource() resource.Resource {
 	return &MonitorResource{}
 }
@@ -222,8 +227,11 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:             int64default.StaticInt64(0),
 			},
 			"type": schema.StringAttribute{
-				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'",
+				MarkdownDescription: monitorTypeDescription + ". Changing the type destroys the monitor and creates a new one with a new ID; the new monitor does not keep the run history of the old one.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf([]string{
 						"Threshold",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	datasourceschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -50,6 +51,12 @@ func (d *MonitorDataSource) Schema(ctx context.Context, _ datasource.SchemaReque
 	r.Schema(ctx, resource.SchemaRequest{}, &resourceResp)
 
 	resp.Schema = frameworkDatasourceSchemaFromFrameworkResourceSchema(resourceResp.Schema)
+
+	// Replacement on type change applies to the resource only.
+	if typeAttr, ok := resp.Schema.Attributes["type"].(datasourceschema.StringAttribute); ok {
+		typeAttr.MarkdownDescription = monitorTypeDescription
+		resp.Schema.Attributes["type"] = typeAttr
+	}
 }
 
 func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {

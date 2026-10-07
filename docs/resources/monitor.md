@@ -18,7 +18,7 @@ description: |-
 ### Required
 
 - `name` (String) Monitor name
-- `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'
+- `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'. Changing the type destroys the monitor and creates a new one with a new ID; the new monitor does not keep the run history of the old one.
 
 ### Optional
 

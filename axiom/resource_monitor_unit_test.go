@@ -1,10 +1,18 @@
 package axiom
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
@@ -104,5 +112,60 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 		state := flattenMonitor(mplOnlyMonitor, nil)
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
+	})
+}
+
+func TestMonitorSchema_TypeChangeRequiresReplace(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	var schemaResp resource.SchemaResponse
+	(&MonitorResource{}).Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	require.False(t, schemaResp.Diagnostics.HasError())
+
+	typeAttr, ok := schemaResp.Schema.Attributes["type"].(schema.StringAttribute)
+	require.True(t, ok, "type attribute must be a string attribute")
+
+	// An existing resource: the plan modifier only considers replacement when
+	// both the prior state and the plan are known objects.
+	existingResource := func() tftypes.Value {
+		values := make(map[string]tftypes.Value, len(schemaResp.Schema.Attributes))
+		for name, attr := range schemaResp.Schema.Attributes {
+			values[name] = tftypes.NewValue(attr.GetType().TerraformType(ctx), nil)
+		}
+		return tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), values)
+	}
+
+	planType := func(stateType, plannedType string) planmodifier.StringResponse {
+		req := planmodifier.StringRequest{
+			Path:        path.Root("type"),
+			StateValue:  types.StringValue(stateType),
+			PlanValue:   types.StringValue(plannedType),
+			ConfigValue: types.StringValue(plannedType),
+			State:       tfsdk.State{Schema: schemaResp.Schema, Raw: existingResource()},
+			Plan:        tfsdk.Plan{Schema: schemaResp.Schema, Raw: existingResource()},
+		}
+		resp := planmodifier.StringResponse{PlanValue: req.PlanValue}
+		for _, modifier := range typeAttr.PlanModifiers {
+			modifier.PlanModifyString(ctx, req, &resp)
+		}
+		return resp
+	}
+
+	t.Run("changing the type replaces the monitor", func(t *testing.T) {
+		t.Parallel()
+
+		resp := planType(axiom.MonitorTypeThreshold.String(), axiom.MonitorTypeMatchEvent.String())
+		require.False(t, resp.Diagnostics.HasError())
+		assert.True(t, resp.RequiresReplace)
+	})
+
+	t.Run("keeping the type updates in place", func(t *testing.T) {
+		t.Parallel()
+
+		resp := planType(axiom.MonitorTypeThreshold.String(), axiom.MonitorTypeThreshold.String())
+		require.False(t, resp.Diagnostics.HasError())
+		assert.False(t, resp.RequiresReplace)
 	})
 }

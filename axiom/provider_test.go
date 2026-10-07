@@ -13,9 +13,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
 	ax "github.com/axiomhq/axiom-go/axiom"
@@ -304,6 +309,75 @@ func TestAccAxiomResources_monitor_mpl_query_roundtrip(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("axiom_monitor.test_monitor", "mpl_query", queryV2),
 					resource.TestCheckNoResourceAttr("axiom_monitor.test_monitor", "apl_query"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccAxiomResources_monitor_type_change_replaces checks that changing a
+// monitor's type plans a replacement, while other changes stay in place.
+func TestAccAxiomResources_monitor_type_change_replaces(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless TF_ACC is set")
+	}
+	testAccPreCheck(t)
+
+	client, err := ax.NewClient()
+	require.NoError(t, err)
+
+	datasetName := "monitor-type-change-" + uuid.NewString()
+	monitorName := "monitor-type-change-" + uuid.NewString()
+	resourceName := "axiom_monitor.test_monitor"
+
+	thresholdQuery := fmt.Sprintf("['%s'] | summarize count()", datasetName)
+	matchEventQuery := fmt.Sprintf("['%s']", datasetName)
+
+	idUnchanged := statecheck.CompareValue(compare.ValuesSame())
+	idChanged := statecheck.CompareValue(compare.ValuesDiffer())
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAxiomMonitorTypeConfig(datasetName, monitorName, "Threshold", thresholdQuery, "before type change"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					idUnchanged.AddStateValue(resourceName, tfjsonpath.New("id")),
+				},
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, resourceName),
+					resource.TestCheckResourceAttr(resourceName, "type", "Threshold"),
+				),
+			},
+			{
+				Config: testAccAxiomMonitorTypeConfig(datasetName, monitorName, "Threshold", thresholdQuery, "description updated in place"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					idUnchanged.AddStateValue(resourceName, tfjsonpath.New("id")),
+					idChanged.AddStateValue(resourceName, tfjsonpath.New("id")),
+				},
+			},
+			{
+				Config: testAccAxiomMonitorTypeConfig(datasetName, monitorName, "MatchEvent", matchEventQuery, "description updated in place"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionReplace),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					idChanged.AddStateValue(resourceName, tfjsonpath.New("id")),
+				},
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAxiomResourcesExist(client, resourceName),
+					resource.TestCheckResourceAttr(resourceName, "type", "MatchEvent"),
+					testAccCheckResourcesCreatesCorrectValues(client, resourceName, "type", "type"),
 				),
 			},
 		},
@@ -1022,6 +1096,37 @@ func testAccCheckResourcesCreatesCorrectValues(client *ax.Client, resourceName, 
 		}
 		return nil
 	}
+}
+
+func testAccAxiomMonitorTypeConfig(datasetName, monitorName, monitorType, aplQuery, description string) string {
+	thresholdFields := ""
+	if monitorType == "Threshold" {
+		thresholdFields = `
+  operator         = "Above"
+  threshold        = 1`
+	}
+
+	return `
+provider "axiom" {
+  api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
+  base_url  = "` + os.Getenv("AXIOM_URL") + `"
+}
+
+resource "axiom_dataset" "test" {
+  name = "` + datasetName + `"
+}
+
+resource "axiom_monitor" "test_monitor" {
+  depends_on = [axiom_dataset.test]
+
+  name             = "` + monitorName + `"
+  description      = "` + description + `"
+  apl_query        = "` + aplQuery + `"
+  interval_minutes = 5
+  range_minutes    = 5` + thresholdFields + `
+  type             = "` + monitorType + `"
+}
+`
 }
 
 func testAccAxiomMonitorMPLQueryConfig(datasetName, monitorName, mplQuery string) string {
