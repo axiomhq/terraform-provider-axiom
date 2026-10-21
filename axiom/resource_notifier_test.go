@@ -33,7 +33,7 @@ func TestNotifiers(t *testing.T) {
 			{
 				Config: testConfigNotifier("discord", ` {
 					discord = {
-						discord_channel = "general"
+						discord_channel = "123456789012345678"
 						discord_token = "fake_discord_token"
 					} }`),
 				Check: resource.ComposeTestCheckFunc(
