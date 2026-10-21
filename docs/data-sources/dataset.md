@@ -24,6 +24,7 @@ description: |-
 - `description` (String) Dataset description
 - `edge_deployment` (String) Edge deployment for the dataset (for example, 'cloud.eu-central-1.aws')
 - `kind` (String) Dataset kind. Must be one of: 'axiom:events:v1', 'otel:metrics:v1', 'otel:traces:v1', 'otel:logs:v1'. Defaults to 'axiom:events:v1'
+- `labels` (Set of String) Set of Axiom label IDs assigned to this resource.
 - `map_fields` (List of String) Map fields for the dataset. Not supported for datasets of kind 'otel:metrics:v1'
 - `name` (String) Dataset name
 - `retention_days` (Number) Retention days for the dataset

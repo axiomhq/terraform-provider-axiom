@@ -21,6 +21,7 @@ description: |-
 
 ### Optional
 
+- `labels` (Set of String) Set of existing Axiom label IDs assigned to this resource. Omit to leave assignments unchanged; use an empty set to clear all assignments.
 - `overwrite` (Boolean) When `true`, force update and ignore `version` conflicts.
 - `uid` (String) Stable dashboard identifier. If omitted, Axiom generates one.
 
