@@ -104,7 +104,7 @@ func TestResourceLabelsLifecycle(t *testing.T) {
 			configState := state
 			require.False(t, configState.SetAttribute(ctx, path.Root("labels"), types.SetUnknown(types.StringType)).HasError())
 			create := resource.CreateResponse{State: state}
-			r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan{Schema: state.Schema, Raw: state.Raw}, Config: tfsdk.Config{Schema: state.Schema, Raw: configState.Raw}}, &create)
+			r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan(state), Config: tfsdk.Config{Schema: state.Schema, Raw: configState.Raw}}, &create)
 			require.False(t, create.Diagnostics.HasError(), "%v", create.Diagnostics)
 			state = create.State
 			checkState(initial)
@@ -141,14 +141,14 @@ func TestResourceLabelsLifecycle(t *testing.T) {
 			for _, desired := range []types.Set{setLabels("lbl_c"), types.SetNull(types.StringType), setLabels()} {
 				plan := state
 				require.False(t, plan.SetAttribute(ctx, path.Root("labels"), desired).HasError())
-				config := tfsdk.Config{Schema: plan.Schema, Raw: plan.Raw}
+				config := tfsdk.Config(plan)
 				if desired.IsNull() {
 					// Terraform can carry prior computed state into the plan even
 					// when labels are omitted from configuration.
 					require.False(t, plan.SetAttribute(ctx, path.Root("labels"), setLabels("lbl_stale")).HasError())
 				}
 				update := resource.UpdateResponse{State: state}
-				r.Update(ctx, resource.UpdateRequest{State: state, Plan: tfsdk.Plan{Schema: plan.Schema, Raw: plan.Raw}, Config: config}, &update)
+				r.Update(ctx, resource.UpdateRequest{State: state, Plan: tfsdk.Plan(plan), Config: config}, &update)
 				require.False(t, update.Diagnostics.HasError(), "%v", update.Diagnostics)
 				state = update.State
 				if desired.IsNull() {
@@ -161,7 +161,7 @@ func TestResourceLabelsLifecycle(t *testing.T) {
 
 			failAssignment = true
 			create = resource.CreateResponse{State: state}
-			r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan{Schema: state.Schema, Raw: state.Raw}, Config: tfsdk.Config{Schema: state.Schema, Raw: state.Raw}}, &create)
+			r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan(state), Config: tfsdk.Config(state)}, &create)
 			require.True(t, create.Diagnostics.HasError())
 			var id types.String
 			require.False(t, create.State.GetAttribute(ctx, path.Root("id"), &id).HasError())
