@@ -49,6 +49,9 @@ func (d *MonitorDataSource) Schema(ctx context.Context, _ datasource.SchemaReque
 	var resourceResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &resourceResp)
 
+	labels := labelsAttribute()
+	labels.MarkdownDescription = "Set of Axiom label IDs assigned to this resource."
+	resourceResp.Schema.Attributes["labels"] = labels
 	resp.Schema = frameworkDatasourceSchemaFromFrameworkResourceSchema(resourceResp.Schema)
 }
 
@@ -73,4 +76,7 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, nil))...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, d.client, "monitor", monitor.ID, nil, plan.Labels, &resp.State)...)
+	}
 }

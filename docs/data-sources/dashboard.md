@@ -25,6 +25,7 @@ description: |-
 - `created_by` (String) Creator returned by the API.
 - `dashboard` (String) Dashboard document as normalized JSON.
 - `id` (String) Internal dashboard identifier returned by the API.
+- `labels` (Set of String) Set of Axiom label IDs assigned to this resource.
 - `updated_at` (String) Last update timestamp returned by the API.
 - `updated_by` (String) Last updater returned by the API.
 - `version` (Number) Monotonic dashboard version.

@@ -141,6 +141,7 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 	return []func() resource.Resource{
 		NewDashboardResource,
 		NewDatasetResource,
+		NewLabelResource,
 		NewMonitorResource,
 		NewNotifierResource,
 		NewUserResource,
