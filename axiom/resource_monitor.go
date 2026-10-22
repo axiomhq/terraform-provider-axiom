@@ -41,6 +41,7 @@ type MonitorResource struct {
 
 // MonitorResourceModel describes the resource data model.
 type MonitorResourceModel struct {
+	Labels                       types.Set     `tfsdk:"labels"`
 	Name                         types.String  `tfsdk:"name"`
 	Description                  types.String  `tfsdk:"description"`
 	ID                           types.String  `tfsdk:"id"`
@@ -75,6 +76,7 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		Version: 1,
 		Attributes: map[string]schema.Attribute{
+			"labels": labelsAttribute(),
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Monitor identifier",
@@ -280,6 +282,9 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", monitor.ID, &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -305,6 +310,9 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", monitor.ID, nil, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -328,6 +336,9 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", monitor.ID, &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -475,6 +486,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 	}
 
 	return MonitorResourceModel{
+		Labels:                       types.SetNull(types.StringType),
 		ID:                           types.StringValue(monitor.ID),
 		Name:                         types.StringValue(monitor.Name),
 		Description:                  description,

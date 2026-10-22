@@ -22,6 +22,7 @@ type DashboardDataSource struct {
 }
 
 type DashboardDataSourceModel struct {
+	Labels    types.Set    `tfsdk:"labels"`
 	ID        types.String `tfsdk:"id"`
 	UID       types.String `tfsdk:"uid"`
 	Dashboard types.String `tfsdk:"dashboard"`
@@ -56,6 +57,11 @@ func (d *DashboardDataSource) Metadata(_ context.Context, req datasource.Metadat
 func (d *DashboardDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"labels": schema.SetAttribute{
+				Computed:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "Set of Axiom label IDs assigned to this resource.",
+			},
 			"uid": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Dashboard UID.",
@@ -123,6 +129,7 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 
 	state := DashboardDataSourceModel{
+		Labels:    types.SetNull(types.StringType),
 		UID:       types.StringValue(dashboard.UID),
 		ID:        types.StringValue(dashboard.ID),
 		Dashboard: types.StringValue(dashboardJSON),
@@ -134,4 +141,7 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, d.client, "dashboard", dashboard.UID, nil, config.Labels, &resp.State)...)
+	}
 }
