@@ -49,6 +49,9 @@ func (d *DatasetDataSource) Schema(ctx context.Context, _ datasource.SchemaReque
 	var resourceResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &resourceResp)
 
+	labels := labelsAttribute()
+	labels.MarkdownDescription = "Set of Axiom label IDs assigned to this resource."
+	resourceResp.Schema.Attributes["labels"] = labels
 	resp.Schema = frameworkDatasourceSchemaFromFrameworkResourceSchema(resourceResp.Schema)
 }
 
@@ -78,4 +81,7 @@ func (d *DatasetDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, d.client, "dataset", ds.Name, nil, plan.Labels, &resp.State)...)
+	}
 }

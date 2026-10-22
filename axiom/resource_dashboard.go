@@ -44,6 +44,7 @@ type DashboardResource struct {
 }
 
 type DashboardResourceModel struct {
+	Labels    types.Set    `tfsdk:"labels"`
 	ID        types.String `tfsdk:"id"`
 	UID       types.String `tfsdk:"uid"`
 	Dashboard types.String `tfsdk:"dashboard"`
@@ -79,6 +80,7 @@ func (r *DashboardResource) Metadata(_ context.Context, req resource.MetadataReq
 func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"labels": labelsAttribute(),
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Dashboard identifier (same value as `uid`).",
@@ -169,6 +171,9 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dashboard", state.UID.ValueString(), &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -212,6 +217,9 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattened)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dashboard", flattened.UID.ValueString(), nil, state.Labels, &resp.State)...)
+	}
 }
 
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -286,6 +294,9 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flattened)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dashboard", flattened.UID.ValueString(), &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -391,6 +402,7 @@ func flattenDashboardResource(in dashboardResourcePayload, overwrite types.Bool,
 	}
 
 	return DashboardResourceModel{
+		Labels:    types.SetNull(types.StringType),
 		ID:        types.StringValue(uid),
 		UID:       types.StringValue(uid),
 		Dashboard: types.StringValue(normalizedDashboard),

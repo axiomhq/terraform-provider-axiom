@@ -46,6 +46,7 @@ type DatasetResource struct {
 
 // DatasetResourceModel describes the resource data model.
 type DatasetResourceModel struct {
+	Labels             types.Set    `tfsdk:"labels"`
 	Name               types.String `tfsdk:"name"`
 	Kind               types.String `tfsdk:"kind"`
 	Description        types.String `tfsdk:"description"`
@@ -64,6 +65,7 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		Version: 1,
 		Attributes: map[string]schema.Attribute{
+			"labels": labelsAttribute(),
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Dataset name",
@@ -275,6 +277,9 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 
 		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dataset", ds.Name, &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -306,6 +311,9 @@ func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dataset", ds.Name, nil, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -372,6 +380,9 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 
 		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	}
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "dataset", ds.Name, &req.Config, plan.Labels, &resp.State)...)
+	}
 }
 
 func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -416,6 +427,7 @@ func flattenDataset(dataset *axiom.Dataset, defaultEdgeDeployment string) Datase
 	}
 
 	return DatasetResourceModel{
+		Labels:             types.SetNull(types.StringType),
 		ID:                 types.StringValue(dataset.ID),
 		Name:               types.StringValue(dataset.Name),
 		Kind:               types.StringValue(dataset.Kind),

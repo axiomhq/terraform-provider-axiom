@@ -29,6 +29,7 @@ description: |-
 - `description` (String) Monitor description
 - `disabled_until` (String) The time the monitor will be disabled until
 - `interval_minutes` (Number) How often the monitor should run
+- `labels` (Set of String) Set of existing Axiom label IDs assigned to this resource. Omit to leave assignments unchanged; use an empty set to clear all assignments.
 - `mpl_query` (String) The MPL query used inside the monitor (mutually exclusive with apl_query)
 - `notifier_ids` (List of String) A list of notifier id's to be used when this monitor triggers
 - `notify_by_group` (Boolean) If the monitor should track non-time groups separately
