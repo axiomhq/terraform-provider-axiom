@@ -63,6 +63,22 @@ data "axiom_dataset" "test_dataset" {
 }
 ```
 
+## Create a view
+
+Define an APL query over a dataset using `axiom_view`:
+
+```hcl
+resource "axiom_view" "errors" {
+  name        = "application-errors"
+  description = "Application error events"
+  apl_query   = "['${axiom_dataset.test_dataset.name}'] | where level == 'error'"
+}
+```
+
+The API token needs permission to manage views and query the underlying datasets.
+The provider supports updates, deletion, and import by view name. Changing the name replaces the view.
+See the [view resource documentation](docs/resources/view.md) for the full schema and import example.
+
 ## License
 
 For more information on licensing, see [LICENSE](./LICENSE).
