@@ -149,6 +149,7 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewRoleResource,
 		NewGroupResource,
 		NewTokenResource,
+		NewViewResource,
 		NewVirtualFieldResource,
 	}
 }
