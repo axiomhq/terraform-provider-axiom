@@ -59,6 +59,7 @@ type MonitorResourceModel struct {
 	Delay                        types.Int64   `tfsdk:"delay"`
 	NotifyEveryRun               types.Bool    `tfsdk:"notify_every_run"`
 	SkipResolved                 types.Bool    `tfsdk:"skip_resolved"`
+	IncludeChart                 types.Bool    `tfsdk:"include_chart"`
 	Tolerance                    types.Float64 `tfsdk:"tolerance"`
 	TriggerFromNRuns             types.Int64   `tfsdk:"trigger_from_n_runs"`
 	TriggerAfterNPositiveResults types.Int64   `tfsdk:"trigger_after_n_positive_results"`
@@ -190,6 +191,13 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
+			},
+			"include_chart": schema.BoolAttribute{
+				MarkdownDescription: "Whether to include a query chart in triggered notifications. " +
+					"This only has an effect on threshold monitors",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
 			},
 			"created_by": schema.StringAttribute{
 				MarkdownDescription: "The ID of the user who created the monitor",
@@ -439,6 +447,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		Delay:                        time.Duration(plan.Delay.ValueInt64()) * time.Second,
 		NotifyEveryRun:               plan.NotifyEveryRun.ValueBool(),
 		SkipResolved:                 plan.SkipResolved.ValueBool(),
+		IncludeChart:                 plan.IncludeChart.ValueBool(),
 		Tolerance:                    plan.Tolerance.ValueFloat64(),
 		TriggerFromNRuns:             plan.TriggerFromNRuns.ValueInt64(),
 		TriggerAfterNPositiveResults: plan.TriggerAfterNPositiveResults.ValueInt64(),
@@ -504,6 +513,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		Delay:                        types.Int64Value(int64(monitor.Delay.Seconds())),
 		NotifyEveryRun:               types.BoolValue(monitor.NotifyEveryRun),
 		SkipResolved:                 types.BoolValue(monitor.SkipResolved),
+		IncludeChart:                 types.BoolValue(monitor.IncludeChart),
 		Tolerance:                    types.Float64Value(monitor.Tolerance),
 		TriggerFromNRuns:             types.Int64Value(monitor.TriggerFromNRuns),
 		TriggerAfterNPositiveResults: types.Int64Value(monitor.TriggerAfterNPositiveResults),
