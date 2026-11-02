@@ -266,6 +266,14 @@ data "axiom_monitor" "test" {
 				ExpectError: regexp.MustCompile(`Threshold level severity "critical" is used more than once`),
 			},
 			{
+				Config: config(`thresholds = [
+    { name = "Page on-call", severity = "critical", value = 95 },
+    { name = "Page on-call", severity = "error", value = 90 },
+  ]`),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`Threshold level name "Page on-call" is used more than once`),
+			},
+			{
 				// An existing threshold-only config sends no thresholds and
 				// plans no diff against the unnamed level the API returns.
 				Config: config(`threshold = 95`),
@@ -344,12 +352,21 @@ resource "terraform_data" "level" {
 					defer mu.Unlock()
 					for _, m := range stored {
 						m["threshold"] = 95.0
-						m["thresholds"] = []any{map[string]any{"name": "Page on-call", "severity": "critical", "value": 95.0}}
+						m["thresholds"] = []any{map[string]any{"name": `CPU "p99" ${host} %{x}`, "severity": "critical", "value": 95.0}}
 					}
 				},
 				Config: config(`threshold = 95`),
 				ExpectError: regexp.MustCompile(`This monitor has 1 named threshold levels[\s\S]*` +
-					`\{ name = "Page on-call", severity = "critical", value = 95 \},`),
+					regexp.QuoteMeta(`{ name = "CPU \"p99\" $${host} %%{x}", severity = "critical", value = 95 },`)),
+			},
+			{
+				// The level as the error printed it pastes back unchanged.
+				Config: config(`thresholds = [
+  { name = "CPU \"p99\" $${host} %%{x}", severity = "critical", value = 95 },
+]`),
+				Check: resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
+					"name": `CPU "p99" ${host} %{x}`, "severity": "critical", "value": "95",
+				}),
 			},
 		},
 	})

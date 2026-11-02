@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -27,6 +28,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/axiomhq/axiom-go/axiom"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -515,7 +517,10 @@ func thresholdsHCL(levels []attr.Value) string {
 		if !ok {
 			continue
 		}
-		fmt.Fprintf(&b, "  { name = %q, severity = %q, value = %s", name.ValueString(), severity.ValueString(),
+		// hclwrite escapes quotes and the ${ and %{ template sequences.
+		fmt.Fprintf(&b, "  { name = %s, severity = %s, value = %s",
+			hclwrite.TokensForValue(cty.StringVal(name.ValueString())).Bytes(),
+			hclwrite.TokensForValue(cty.StringVal(severity.ValueString())).Bytes(),
 			strconv.FormatFloat(value.ValueFloat64(), 'f', -1, 64))
 		if !recovery.IsNull() {
 			fmt.Fprintf(&b, ", recovery = %s", strconv.FormatFloat(recovery.ValueFloat64(), 'f', -1, 64))
