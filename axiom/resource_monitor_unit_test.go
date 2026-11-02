@@ -199,7 +199,10 @@ func TestMonitorThresholdLevels(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	config := func(levels string) string {
+	configWith := func(monitorType, operator, levels string) string {
+		if operator != "" {
+			operator = fmt.Sprintf("operator = %q", operator)
+		}
 		return fmt.Sprintf(`
 provider "axiom" {
   api_token = "xaat-test"
@@ -207,13 +210,17 @@ provider "axiom" {
 }
 resource "axiom_monitor" "test" {
   name      = "cpu"
-  type      = "Threshold"
+  type      = %q
   apl_query = "['metrics'] | summarize avg(cpu)"
-  operator  = "Above"
+  %s
   %s
 }
-`, srv.URL, levels)
+data "axiom_monitor" "test" {
+  id = axiom_monitor.test.id
+}
+`, srv.URL, monitorType, operator, levels)
 	}
+	config := func(levels string) string { return configWith("Threshold", "Above", levels) }
 	// Written most severe first; the API returns them least severe first.
 	twoLevels := func(critical string) string {
 		return `thresholds = [
@@ -231,6 +238,32 @@ resource "axiom_monitor" "test" {
 			{
 				Config: config(``),
 				Check:  resource.TestCheckResourceAttr(res, "threshold", "0"),
+			},
+			{
+				Config: configWith("MatchEvent", "", ``),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "type", "MatchEvent"),
+					resource.TestCheckResourceAttr(res, "threshold", "0"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+				),
+			},
+			{
+				Config:      configWith("MatchEvent", "", twoLevels("95")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`thresholds are only supported on Threshold monitors, not MatchEvent`),
+			},
+			{
+				Config:      configWith("Threshold", "", twoLevels("95")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`thresholds need operator Above, AboveOrEqual, Below or BelowOrEqual`),
+			},
+			{
+				Config: config(`thresholds = [
+    { name = "Page on-call", severity = "critical", value = 95 },
+    { name = "Wake someone", severity = "critical", value = 99 },
+  ]`),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`Threshold level severity "critical" is used more than once`),
 			},
 			{
 				// An existing threshold-only config sends no thresholds and
@@ -267,6 +300,11 @@ resource "axiom_monitor" "test" {
 					resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
 						"name": "Heads up", "severity": "warning", "value": "80",
 					}),
+					resource.TestCheckResourceAttr("data.axiom_monitor.test", "threshold", "95"),
+					resource.TestCheckResourceAttr("data.axiom_monitor.test", "thresholds.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs("data.axiom_monitor.test", "thresholds.*", map[string]string{
+						"name": "Page on-call", "severity": "critical", "value": "95", "recovery": "90",
+					}),
 				),
 			},
 			{ResourceName: res, ImportState: true, ImportStateVerify: true},
@@ -276,12 +314,42 @@ resource "axiom_monitor" "test" {
 				Check:  resource.TestCheckResourceAttr(res, "threshold", "97"),
 			},
 			{
-				Config:      config(`threshold = 90`),
-				ExpectError: regexp.MustCompile(`This monitor has 2 named threshold levels, so they must be set in\s+thresholds`),
+				// A level value unknown until apply plans threshold as unknown.
+				Config: config(`thresholds = [
+    { name = "Page on-call", severity = "critical", value = terraform_data.level.output },
+    { name = "Heads up", severity = "warning", value = 80 },
+  ]
+}
+resource "terraform_data" "level" {
+  input = 99`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "threshold", "99"),
+					resource.TestCheckResourceAttr(res, "thresholds.#", "2"),
+				),
+			},
+			{
+				Config: config(`threshold = 90`),
+				ExpectError: regexp.MustCompile(`This monitor has 2 named threshold levels, so they must be set in\s+thresholds[\s\S]*` +
+					`\{ name = "Heads up", severity = "warning", value = 80 \},`),
 			},
 			{
 				Config:      config(``),
 				ExpectError: regexp.MustCompile(`Monitor has threshold levels`),
+			},
+			{
+				// One named level, as the Console can leave a monitor, still
+				// requires thresholds rather than a threshold-only config.
+				PreConfig: func() {
+					mu.Lock()
+					defer mu.Unlock()
+					for _, m := range stored {
+						m["threshold"] = 95.0
+						m["thresholds"] = []any{map[string]any{"name": "Page on-call", "severity": "critical", "value": 95.0}}
+					}
+				},
+				Config: config(`threshold = 95`),
+				ExpectError: regexp.MustCompile(`This monitor has 1 named threshold levels[\s\S]*` +
+					`\{ name = "Page on-call", severity = "critical", value = 95 \},`),
 			},
 		},
 	})
