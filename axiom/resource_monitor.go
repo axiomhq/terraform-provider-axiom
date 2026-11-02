@@ -3,9 +3,10 @@ package axiom
 import (
 	"context"
 	"fmt"
-	"maps"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
@@ -36,13 +37,12 @@ var (
 	_ resource.ResourceWithModifyPlan   = &MonitorResource{}
 )
 
-// monitorSeverities maps each threshold level severity to its axiom-go value.
-// axiom-go orders the values from least to most severe.
-var monitorSeverities = map[string]axiom.MonitorSeverity{
-	axiom.MonitorSeverityInfo.String():     axiom.MonitorSeverityInfo,
-	axiom.MonitorSeverityWarning.String():  axiom.MonitorSeverityWarning,
-	axiom.MonitorSeverityError.String():    axiom.MonitorSeverityError,
-	axiom.MonitorSeverityCritical.String(): axiom.MonitorSeverityCritical,
+// monitorSeverities lists threshold level severities from least to most severe.
+var monitorSeverities = []string{
+	string(axiom.MonitorSeverityInfo),
+	string(axiom.MonitorSeverityWarning),
+	string(axiom.MonitorSeverityError),
+	string(axiom.MonitorSeverityCritical),
 }
 
 var monitorThresholdObjectType = types.ObjectType{AttrTypes: map[string]attr.Type{
@@ -223,7 +223,7 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							MarkdownDescription: "Level severity. One of `critical`, `error`, `warning` or `info`",
 							Required:            true,
 							Validators: []validator.String{
-								stringvalidator.OneOf(slices.Sorted(maps.Keys(monitorSeverities))...),
+								stringvalidator.OneOf(monitorSeverities...),
 							},
 						},
 						"value": schema.Float64Attribute{
@@ -435,22 +435,25 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	var thresholds types.Set
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("thresholds"), &thresholds)...)
+	var plan MonitorResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if thresholds.IsNull() {
+	if plan.Thresholds.IsNull() {
 		if !req.State.Raw.IsNull() {
 			var stateThresholds types.Set
 			resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("thresholds"), &stateThresholds)...)
-			if !stateThresholds.IsNull() && len(stateThresholds.Elements()) > 0 {
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			if levels := stateThresholds.Elements(); len(levels) > 0 {
 				resp.Diagnostics.AddAttributeError(path.Root("thresholds"), "Monitor has threshold levels",
 					fmt.Sprintf("This monitor has %d named threshold levels, so they must be set in thresholds. "+
 						"The Axiom API cannot replace threshold levels with a single threshold. "+
-						"Add the current levels to the configuration to manage them: %s",
-						len(stateThresholds.Elements()), stateThresholds.String()))
+						"Add the current levels to the configuration to manage them:\n\n%s",
+						len(levels), thresholdsHCL(levels)))
 				return
 			}
 		}
@@ -462,34 +465,65 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	threshold := types.Float64Unknown()
-	if !thresholds.IsUnknown() {
-		var levels []monitorThresholdModel
-		resp.Diagnostics.Append(thresholds.ElementsAs(ctx, &levels, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		if value, ok := mostSevereThresholdValue(levels); ok {
-			threshold = types.Float64Value(value)
-		}
+	resp.Diagnostics.Append(validateThresholds(plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("threshold"), threshold)...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("threshold"), mostSevereThreshold(plan.Thresholds))...)
 }
 
-// mostSevereThresholdValue returns the value of the most severe level, which
-// the API reports as threshold. It returns false while any level is unknown.
-func mostSevereThresholdValue(levels []monitorThresholdModel) (float64, bool) {
-	var severity axiom.MonitorSeverity
-	var value float64
-	for _, l := range levels {
-		if l.Severity.IsUnknown() || l.Value.IsUnknown() {
-			return 0, false
+// thresholdLevel returns the attributes of one thresholds element, or false
+// while the element is unknown.
+func thresholdLevel(element attr.Value) (name, severity types.String, value, recovery types.Float64, ok bool) {
+	obj, isObject := element.(types.Object)
+	if !isObject || obj.IsNull() || obj.IsUnknown() {
+		return name, severity, value, recovery, false
+	}
+	attrs := obj.Attributes()
+	name, _ = attrs["name"].(types.String)
+	severity, _ = attrs["severity"].(types.String)
+	value, _ = attrs["value"].(types.Float64)
+	recovery, _ = attrs["recovery"].(types.Float64)
+	return name, severity, value, recovery, true
+}
+
+// mostSevereThreshold returns the value of the most severe level, which the
+// API reports as threshold. It is unknown while any level is unknown.
+func mostSevereThreshold(thresholds types.Set) types.Float64 {
+	if thresholds.IsUnknown() {
+		return types.Float64Unknown()
+	}
+	mostSevere, result := -1, 0.0
+	for _, element := range thresholds.Elements() {
+		_, severity, value, _, ok := thresholdLevel(element)
+		if !ok || severity.IsUnknown() || value.IsUnknown() {
+			return types.Float64Unknown()
 		}
-		if s := monitorSeverities[l.Severity.ValueString()]; s > severity {
-			severity, value = s, l.Value.ValueFloat64()
+		if s := slices.Index(monitorSeverities, severity.ValueString()); s > mostSevere {
+			mostSevere, result = s, value.ValueFloat64()
 		}
 	}
-	return value, true
+	return types.Float64Value(result)
+}
+
+// thresholdsHCL formats levels as a thresholds argument to paste into a configuration.
+func thresholdsHCL(levels []attr.Value) string {
+	var b strings.Builder
+	b.WriteString("thresholds = [\n")
+	for _, element := range levels {
+		name, severity, value, recovery, ok := thresholdLevel(element)
+		if !ok {
+			continue
+		}
+		fmt.Fprintf(&b, "  { name = %q, severity = %q, value = %s", name.ValueString(), severity.ValueString(),
+			strconv.FormatFloat(value.ValueFloat64(), 'f', -1, 64))
+		if !recovery.IsNull() {
+			fmt.Fprintf(&b, ", recovery = %s", strconv.FormatFloat(recovery.ValueFloat64(), 'f', -1, 64))
+		}
+		b.WriteString(" },\n")
+	}
+	b.WriteString("]")
+	return b.String()
 }
 
 func (r *MonitorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -515,7 +549,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		for _, l := range levels {
 			thresholds = append(thresholds, axiom.MonitorThreshold{
 				Name:     l.Name.ValueString(),
-				Severity: monitorSeverities[l.Severity.ValueString()],
+				Severity: axiom.MonitorSeverity(l.Severity.ValueString()),
 				Value:    l.Value.ValueFloat64(),
 				Recovery: l.Recovery.ValueFloat64Pointer(),
 			})
@@ -612,7 +646,7 @@ func flattenThresholds(levels []axiom.MonitorThreshold) types.Set {
 	for _, l := range levels {
 		elements = append(elements, types.ObjectValueMust(monitorThresholdObjectType.AttrTypes, map[string]attr.Value{
 			"name":     types.StringValue(l.Name),
-			"severity": types.StringValue(l.Severity.String()),
+			"severity": types.StringValue(string(l.Severity)),
 			"value":    types.Float64Value(l.Value),
 			"recovery": types.Float64PointerValue(l.Recovery),
 		}))
@@ -701,6 +735,8 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 		))
 	}
 
+	diags.Append(validateThresholds(plan)...)
+
 	switch plan.Type.ValueString() {
 	case axiom.MonitorTypeThreshold.String():
 		if plan.IntervalMinutes.IsNull() {
@@ -759,6 +795,51 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 				"Operator is required",
 				"Operator is required for monitor type anomaly detection",
 			))
+		}
+	}
+	return diags
+}
+
+// validateThresholds checks the thresholds rules the plan can know, leaving
+// value ordering and recovery to the API. Unknown values are skipped.
+func validateThresholds(plan MonitorResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if plan.Thresholds.IsNull() {
+		return diags
+	}
+
+	if !plan.Type.IsUnknown() && plan.Type.ValueString() != axiom.MonitorTypeThreshold.String() {
+		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+			fmt.Sprintf("thresholds are only supported on Threshold monitors, not %s.", plan.Type.ValueString()))
+	}
+	switch plan.Operator.ValueString() {
+	case axiom.Above.String(), axiom.AboveOrEqual.String(), axiom.Below.String(), axiom.BelowOrEqual.String():
+	default:
+		if !plan.Operator.IsUnknown() {
+			diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+				fmt.Sprintf("thresholds need operator Above, AboveOrEqual, Below or BelowOrEqual, got %q.", plan.Operator.ValueString()))
+		}
+	}
+
+	names, severities := map[string]bool{}, map[string]bool{}
+	for _, element := range plan.Thresholds.Elements() {
+		name, severity, _, _, ok := thresholdLevel(element)
+		if !ok {
+			continue
+		}
+		if !name.IsUnknown() {
+			if names[name.ValueString()] {
+				diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+					fmt.Sprintf("Threshold level name %q is used more than once.", name.ValueString()))
+			}
+			names[name.ValueString()] = true
+		}
+		if !severity.IsUnknown() {
+			if severities[severity.ValueString()] {
+				diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+					fmt.Sprintf("Threshold level severity %q is used more than once.", severity.ValueString()))
+			}
+			severities[severity.ValueString()] = true
 		}
 	}
 	return diags
