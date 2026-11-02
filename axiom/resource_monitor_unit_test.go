@@ -88,7 +88,7 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 			MPLQuery: types.StringValue("`test-metrics`:`http_request_duration_seconds` | align to 1m using avg"),
 		}
 
-		state := flattenMonitor(&apiMonitor{Monitor: *monitor}, &currentState)
+		state := flattenMonitor(monitor, &currentState)
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
 	})
@@ -96,7 +96,7 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 	t.Run("stores apl_query when no mpl_query preference exists", func(t *testing.T) {
 		t.Parallel()
 
-		state := flattenMonitor(&apiMonitor{Monitor: *monitor}, nil)
+		state := flattenMonitor(monitor, nil)
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.APLQuery.ValueString())
 		assert.True(t, state.MPLQuery.IsNull())
 	})
@@ -113,7 +113,7 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 			CreatedBy: "user-id",
 		}
 
-		state := flattenMonitor(&apiMonitor{Monitor: *mplOnlyMonitor}, nil)
+		state := flattenMonitor(mplOnlyMonitor, nil)
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
 	})

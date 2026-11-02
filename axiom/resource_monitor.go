@@ -2,10 +2,8 @@ package axiom
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
+	"maps"
 	"regexp"
 	"slices"
 	"time"
@@ -38,8 +36,14 @@ var (
 	_ resource.ResourceWithModifyPlan   = &MonitorResource{}
 )
 
-// monitorThresholdSeverities lists threshold level severities from least to most severe.
-var monitorThresholdSeverities = []string{"info", "warning", "error", "critical"}
+// monitorSeverities maps each threshold level severity to its axiom-go value.
+// axiom-go orders the values from least to most severe.
+var monitorSeverities = map[string]axiom.MonitorSeverity{
+	axiom.MonitorSeverityInfo.String():     axiom.MonitorSeverityInfo,
+	axiom.MonitorSeverityWarning.String():  axiom.MonitorSeverityWarning,
+	axiom.MonitorSeverityError.String():    axiom.MonitorSeverityError,
+	axiom.MonitorSeverityCritical.String(): axiom.MonitorSeverityCritical,
+}
 
 var monitorThresholdObjectType = types.ObjectType{AttrTypes: map[string]attr.Type{
 	"name":     types.StringType,
@@ -53,57 +57,6 @@ type monitorThresholdModel struct {
 	Severity types.String  `tfsdk:"severity"`
 	Value    types.Float64 `tfsdk:"value"`
 	Recovery types.Float64 `tfsdk:"recovery"`
-}
-
-type monitorThreshold struct {
-	Name     string   `json:"name"`
-	Severity string   `json:"severity"`
-	Value    float64  `json:"value"`
-	Recovery *float64 `json:"recovery,omitempty"`
-}
-
-// apiMonitor is an axiom.Monitor with the threshold levels of the v2 monitors
-// API, which axiom-go v0.38.0 does not model yet.
-type apiMonitor struct {
-	axiom.Monitor
-	Thresholds []monitorThreshold
-}
-
-func (m apiMonitor) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(m.Monitor)
-	if err != nil || m.Thresholds == nil {
-		return b, err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(b, &fields); err != nil {
-		return nil, err
-	}
-	if fields["thresholds"], err = json.Marshal(m.Thresholds); err != nil {
-		return nil, err
-	}
-	return json.Marshal(fields)
-}
-
-func (m *apiMonitor) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &m.Monitor); err != nil {
-		return err
-	}
-	var levels struct {
-		Thresholds []monitorThreshold `json:"thresholds"`
-	}
-	if err := json.Unmarshal(b, &levels); err != nil {
-		return err
-	}
-	m.Thresholds = levels.Thresholds
-	return nil
-}
-
-func getMonitor(ctx context.Context, client *axiom.Client, id string) (*apiMonitor, error) {
-	var monitor apiMonitor
-	if err := client.Call(ctx, http.MethodGet, "/v2/monitors/"+url.PathEscape(id), nil, &monitor); err != nil {
-		return nil, err
-	}
-	return &monitor, nil
 }
 
 func NewMonitorResource() resource.Resource {
@@ -270,7 +223,7 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							MarkdownDescription: "Level severity. One of `critical`, `error`, `warning` or `info`",
 							Required:            true,
 							Validators: []validator.String{
-								stringvalidator.OneOf(monitorThresholdSeverities...),
+								stringvalidator.OneOf(slices.Sorted(maps.Keys(monitorSeverities))...),
 							},
 						},
 						"value": schema.Float64Attribute{
@@ -394,15 +347,15 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	var created apiMonitor
-	if err := r.client.Call(ctx, http.MethodPost, "/v2/monitors", monitor, &created); err != nil {
+	monitor, err := r.client.Monitors.Create(ctx, axiom.MonitorCreateRequest{Monitor: *monitor})
+	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create Monitor, got error: %s", err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(&created, &plan))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
 	if !resp.Diagnostics.HasError() {
-		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", created.ID, &req.Config, plan.Labels, &resp.State)...)
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", monitor.ID, &req.Config, plan.Labels, &resp.State)...)
 	}
 }
 
@@ -414,7 +367,7 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	monitor, err := getMonitor(ctx, r.client, plan.ID.ValueString())
+	monitor, err := r.client.Monitors.Get(ctx, plan.ID.ValueString())
 	if err != nil {
 		if isNotFoundError(err) {
 			resp.Diagnostics.AddWarning(
@@ -448,15 +401,15 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	var updated apiMonitor
-	if err := r.client.Call(ctx, http.MethodPut, "/v2/monitors/"+url.PathEscape(plan.ID.ValueString()), monitor, &updated); err != nil {
+	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{Monitor: *monitor})
+	if err != nil {
 		resp.Diagnostics.AddError("failed to update Monitor", err.Error())
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(&updated, &plan))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, flattenMonitor(monitor, &plan))...)
 	if !resp.Diagnostics.HasError() {
-		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", updated.ID, &req.Config, plan.Labels, &resp.State)...)
+		resp.Diagnostics.Append(syncLabels(ctx, r.client, "monitor", monitor.ID, &req.Config, plan.Labels, &resp.State)...)
 	}
 }
 
@@ -526,13 +479,14 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 // mostSevereThresholdValue returns the value of the most severe level, which
 // the API reports as threshold. It returns false while any level is unknown.
 func mostSevereThresholdValue(levels []monitorThresholdModel) (float64, bool) {
-	rank, value := -1, 0.0
+	var severity axiom.MonitorSeverity
+	var value float64
 	for _, l := range levels {
 		if l.Severity.IsUnknown() || l.Value.IsUnknown() {
 			return 0, false
 		}
-		if r := slices.Index(monitorThresholdSeverities, l.Severity.ValueString()); r > rank {
-			rank, value = r, l.Value.ValueFloat64()
+		if s := monitorSeverities[l.Severity.ValueString()]; s > severity {
+			severity, value = s, l.Value.ValueFloat64()
 		}
 	}
 	return value, true
@@ -546,22 +500,22 @@ func (r *MonitorResource) UpgradeState(ctx context.Context) map[int64]resource.S
 	return v0PassthroughUpgraders(ctx, r)
 }
 
-func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel) (*apiMonitor, diag.Diagnostics) {
+func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel) (*axiom.Monitor, diag.Diagnostics) {
 	notifierIds, diags := typeStringSliceToStringSlice(ctx, plan.NotifierIds.Elements())
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	var thresholds []monitorThreshold
+	var thresholds []axiom.MonitorThreshold
 	if !plan.Thresholds.IsNull() {
 		var levels []monitorThresholdModel
 		if diags = plan.Thresholds.ElementsAs(ctx, &levels, false); diags.HasError() {
 			return nil, diags
 		}
 		for _, l := range levels {
-			thresholds = append(thresholds, monitorThreshold{
+			thresholds = append(thresholds, axiom.MonitorThreshold{
 				Name:     l.Name.ValueString(),
-				Severity: l.Severity.ValueString(),
+				Severity: monitorSeverities[l.Severity.ValueString()],
 				Value:    l.Value.ValueFloat64(),
 				Recovery: l.Recovery.ValueFloat64Pointer(),
 			})
@@ -621,7 +575,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		mplQuery = plan.MPLQuery.ValueString()
 	}
 
-	return &apiMonitor{Thresholds: thresholds, Monitor: axiom.Monitor{
+	return &axiom.Monitor{
 		Name:                         plan.Name.ValueString(),
 		AlertOnNoData:                plan.AlertOnNoData.ValueBool(),
 		NotifyByGroup:                plan.NotifyByGroup.ValueBool(),
@@ -643,13 +597,14 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		TriggerAfterNPositiveResults: plan.TriggerAfterNPositiveResults.ValueInt64(),
 		CompareDays:                  plan.CompareDays.ValueInt64(),
 		Type:                         monitorType,
-	}}, nil
+		Thresholds:                   thresholds,
+	}, nil
 }
 
 // flattenThresholds returns the monitor's named levels. A monitor without
 // levels reads back as one unnamed level holding threshold, which stays null
 // so that configurations using only threshold have no diff.
-func flattenThresholds(levels []monitorThreshold) types.Set {
+func flattenThresholds(levels []axiom.MonitorThreshold) types.Set {
 	if len(levels) == 0 || levels[0].Name == "" {
 		return types.SetNull(monitorThresholdObjectType)
 	}
@@ -657,7 +612,7 @@ func flattenThresholds(levels []monitorThreshold) types.Set {
 	for _, l := range levels {
 		elements = append(elements, types.ObjectValueMust(monitorThresholdObjectType.AttrTypes, map[string]attr.Value{
 			"name":     types.StringValue(l.Name),
-			"severity": types.StringValue(l.Severity),
+			"severity": types.StringValue(l.Severity.String()),
 			"value":    types.Float64Value(l.Value),
 			"recovery": types.Float64PointerValue(l.Recovery),
 		}))
@@ -665,7 +620,7 @@ func flattenThresholds(levels []monitorThreshold) types.Set {
 	return types.SetValueMust(monitorThresholdObjectType, elements)
 }
 
-func flattenMonitor(monitor *apiMonitor, currentState *MonitorResourceModel) MonitorResourceModel {
+func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) MonitorResourceModel {
 	var disabledUntil types.String
 	var description types.String
 	var aplQuery types.String

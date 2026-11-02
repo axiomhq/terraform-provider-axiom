@@ -68,7 +68,7 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	monitor, err := getMonitor(ctx, d.client, plan.ID.ValueString())
+	monitor, err := d.client.Monitors.Get(ctx, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to read Monitor", err.Error())
 		tflog.Error(ctx, err.Error())
