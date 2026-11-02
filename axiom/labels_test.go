@@ -23,7 +23,7 @@ func TestResourceLabelsLifecycle(t *testing.T) {
 	}
 	ctx := context.Background()
 	dataset := &axiom.Dataset{ID: "internal-dataset-id", Name: "logs", Kind: "axiom:events:v1", EdgeDeployment: "cloud"}
-	monitor := &apiMonitor{Monitor: axiom.Monitor{ID: "monitor-id", Name: "errors", Type: axiom.MonitorTypeMatchEvent, APLQuery: "['logs']"}}
+	monitor := &axiom.Monitor{ID: "monitor-id", Name: "errors", Type: axiom.MonitorTypeMatchEvent, APLQuery: "['logs']"}
 	dashboard := dashboardResourcePayload{ID: "internal-dashboard-id", UID: "dashboard-uid", Dashboard: json.RawMessage(`{"name":"Overview"}`)}
 	dashboardModel, err := flattenDashboardResource(dashboard, types.BoolValue(true), types.StringNull())
 	require.NoError(t, err)
