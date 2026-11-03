@@ -519,4 +519,52 @@ resource "terraform_data" "level" {
 			},
 		},
 	})
+
+	// Per-level notifiers, sent in configuration order; the API leaves out an empty list.
+	notifierLevels := func(critical, warning string) string {
+		return `thresholds = [
+    { name = "Page on-call", severity = "critical", value = 95, recovery = 90` + critical + ` },
+    { name = "Heads up", severity = "warning", value = 80` + warning + ` },
+  ]`
+	}
+	const sentLevels = `"threshold":95,"thresholds":[{"name":"Heads up","severity":"warning","value":80},` +
+		`{"name":"Page on-call",%s"recovery":90,"severity":"critical","value":95}]`
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: config(notifierLevels(`, notifier_ids = ["pager", "opsgenie"]`, ``)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
+						"name": "Page on-call", "notifier_ids.#": "2",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
+						"name": "Page on-call", "notifier_ids.0": "pager", "notifier_ids.1": "opsgenie",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("data.axiom_monitor.test", "thresholds.*", map[string]string{
+						"name": "Page on-call", "notifier_ids.#": "2",
+					}),
+					lastRequest(fmt.Sprintf(sentLevels, `"notifierIds":["pager","opsgenie"],`)),
+				),
+			},
+			{ResourceName: res, ImportState: true, ImportStateVerify: true},
+			{
+				// An empty list means the monitor's notifiers, like no list.
+				// It reads back empty, with no diff.
+				Config: config(notifierLevels(`, notifier_ids = ["pager"]`, `, notifier_ids = []`)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
+						"name": "Heads up", "notifier_ids.#": "0",
+					}),
+					lastRequest(fmt.Sprintf(sentLevels, `"notifierIds":["pager"],`)),
+				),
+			},
+			{
+				Config: config(notifierLevels(``, ``)),
+				Check:  lastRequest(fmt.Sprintf(sentLevels, ``)),
+			},
+		},
+	})
 }
