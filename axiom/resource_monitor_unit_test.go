@@ -502,6 +502,21 @@ resource "terraform_data" "level" {
 				Config:      anomaly(``),
 				ExpectError: regexp.MustCompile(`An AnomalyDetection monitor needs tolerance, or thresholds to derive it`),
 			},
+			{
+				// The API rejects a type change of a monitor with levels.
+				Config:      config(anomalyLevels("3")),
+				ExpectError: regexp.MustCompile(`This AnomalyDetection monitor has threshold levels, whose values mean\s+something else on a Threshold monitor`),
+			},
+			{
+				// Removing thresholds in the same change clears the levels first.
+				Config: config(`threshold = 7`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "type", "Threshold"),
+					resource.TestCheckResourceAttr(res, "tolerance", "0"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					lastRequest(`"threshold":7,"thresholds":[]`),
+				),
+			},
 		},
 	})
 }

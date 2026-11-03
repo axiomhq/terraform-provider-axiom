@@ -459,6 +459,24 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
+	// The API rejects a type change of a monitor with levels, since a level's
+	// value means something else on another type. Removing thresholds in the
+	// same change clears the levels first, which the API allows.
+	if !req.State.Raw.IsNull() && !plan.Thresholds.IsNull() {
+		var state MonitorResourceModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if len(state.Thresholds.Elements()) > 0 && !plan.Type.IsUnknown() && plan.Type.ValueString() != state.Type.ValueString() {
+			resp.Diagnostics.AddAttributeError(path.Root("type"), "Cannot change the type of a monitor with threshold levels",
+				fmt.Sprintf("This %s monitor has threshold levels, whose values mean something else on a %s monitor. "+
+					"Remove thresholds in the same change, which clears the levels, and set threshold or tolerance instead.",
+					state.Type.ValueString(), plan.Type.ValueString()))
+			return
+		}
+	}
+
 	derived := map[string]types.Float64{}
 	if !plan.Thresholds.IsNull() {
 		resp.Diagnostics.Append(validateThresholds(plan)...)
