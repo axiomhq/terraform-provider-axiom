@@ -23,7 +23,10 @@ resource "axiom_monitor" "threshold" {
   threshold        = 100
 }
 
-# Named levels set threshold to the most severe level's value.
+# Named levels set threshold to the most severe level's value. A level without
+# notifier_ids uses the monitor's. Each level's notifiers hear about the alert
+# while it is at that level or a more severe one: here Slack hears about both
+# levels, and PagerDuty only about the critical one.
 resource "axiom_monitor" "threshold_levels" {
   name             = "Error rate levels"
   type             = "Threshold"
@@ -31,8 +34,9 @@ resource "axiom_monitor" "threshold_levels" {
   interval_minutes = 5
   range_minutes    = 5
   operator         = "Above"
+  notifier_ids     = [axiom_notifier.slack.id]
   thresholds = [
-    { name = "Page on-call", severity = "critical", value = 500, recovery = 400 },
+    { name = "Page on-call", severity = "critical", value = 500, recovery = 400, notifier_ids = [axiom_notifier.pagerduty.id] },
     { name = "Heads up", severity = "warning", value = 100 },
   ]
 }
@@ -103,4 +107,5 @@ Required:
 
 Optional:
 
+- `notifier_ids` (List of String) Notifiers for this level, which hear about the alert while it is at this level or a more severe one. Unset or empty, the level uses the monitor's `notifier_ids`. Requires the threshold levels feature for the organization
 - `recovery` (Number) The value the query result must cross for the level to resolve. Defaults to `value` and must be on the resolving side of it. On an AnomalyDetection monitor, a tolerance from 0 to `value`
