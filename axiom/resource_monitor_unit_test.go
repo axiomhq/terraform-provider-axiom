@@ -121,10 +121,10 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 
 // TestMonitorThresholdLevels runs axiom_monitor against a fake v2 monitors API
 // that follows the threshold levels contract: levels come back sorted from
-// least to most severe, threshold is the most severe level's value, a monitor
-// without levels reads back as one unnamed level, an empty thresholds list
-// removes the levels, and a request without thresholds on a monitor with more
-// than one level is rejected.
+// least to most severe, threshold (tolerance on anomaly monitors) is the most
+// severe level's value, a monitor without levels reads back as one unnamed
+// level, an empty thresholds list removes the levels, and a request without
+// thresholds on a monitor with more than one level is rejected.
 func TestMonitorThresholdLevels(t *testing.T) {
 	for _, env := range []string{"AXIOM_URL", "AXIOM_TOKEN", "AXIOM_ORG_ID", "AXIOM_EDGE_URL", "AXIOM_EDGE", "AXIOM_API_TOKEN", "AXIOM_BASE_URL"} {
 		t.Setenv(env, "")
@@ -135,10 +135,17 @@ func TestMonitorThresholdLevels(t *testing.T) {
 	var requests []map[string]any
 	severities := []string{"info", "warning", "error", "critical"}
 
+	// levelKey is the field holding the most severe level's value.
+	levelKey := func(m map[string]any) string {
+		if m["type"] == "AnomalyDetection" {
+			return "tolerance"
+		}
+		return "threshold"
+	}
 	respond := func(w http.ResponseWriter, m map[string]any) {
 		out := maps.Clone(m)
 		if out["thresholds"] == nil {
-			out["thresholds"] = []any{map[string]any{"value": out["threshold"]}}
+			out["thresholds"] = []any{map[string]any{"value": out[levelKey(out)]}}
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
@@ -160,14 +167,14 @@ func TestMonitorThresholdLevels(t *testing.T) {
 		}
 		body["id"] = id
 		if levels, ok := body["thresholds"].([]any); ok && len(levels) == 0 {
-			// An empty list removes the levels, leaving threshold.
+			// An empty list removes the levels, leaving threshold or tolerance.
 			delete(body, "thresholds")
 		} else if ok {
 			slices.SortFunc(levels, func(a, b any) int {
 				return slices.Index(severities, a.(map[string]any)["severity"].(string)) -
 					slices.Index(severities, b.(map[string]any)["severity"].(string))
 			})
-			body["threshold"] = levels[len(levels)-1].(map[string]any)["value"]
+			body[levelKey(body)] = levels[len(levels)-1].(map[string]any)["value"]
 		} else if old, _ := stored[id]["thresholds"].([]any); len(old) > 1 {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("monitor has %d threshold levels, set thresholds to change them", len(old)))
 			return
@@ -233,15 +240,17 @@ data "axiom_monitor" "test" {
   ]`
 	}
 	const res = "axiom_monitor.test"
-	// lastRequest checks the threshold fields of the last monitor write.
+	// lastRequest checks the level fields of the last monitor write.
 	lastRequest := func(want string) resource.TestCheckFunc {
 		return func(*terraform.State) error {
 			mu.Lock()
 			defer mu.Unlock()
 			last := requests[len(requests)-1]
 			fields := map[string]any{"threshold": last["threshold"]}
-			if levels, sent := last["thresholds"]; sent {
-				fields["thresholds"] = levels
+			for _, key := range []string{"thresholds", "tolerance"} {
+				if value, sent := last[key]; sent {
+					fields[key] = value
+				}
 			}
 			if got, _ := json.Marshal(fields); string(got) != "{"+want+"}" {
 				return fmt.Errorf("last request sent %s, want {%s}", got, want)
@@ -270,12 +279,12 @@ data "axiom_monitor" "test" {
 			{
 				Config:      configWith("MatchEvent", "", twoLevels("95")),
 				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`thresholds are only supported on Threshold monitors, not MatchEvent`),
+				ExpectError: regexp.MustCompile(`thresholds are only supported on Threshold and AnomalyDetection monitors,\s+not\s+MatchEvent`),
 			},
 			{
 				Config:      configWith("Threshold", "", twoLevels("95")),
 				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`thresholds need operator Above, AboveOrEqual, Below or BelowOrEqual`),
+				ExpectError: regexp.MustCompile(`thresholds on Threshold monitors need operator Above, AboveOrEqual, Below,\s+BelowOrEqual, got ""`),
 			},
 			{
 				Config: config(`thresholds = [
@@ -397,6 +406,101 @@ resource "terraform_data" "level" {
 					resource.TestCheckNoResourceAttr(res, "thresholds"),
 					lastRequest(`"threshold":95,"thresholds":[]`),
 				),
+			},
+		},
+	})
+
+	// Anomaly monitors keep the most severe level's value in tolerance.
+	anomaly := func(levels string) string {
+		return configWith("AnomalyDetection", "Above", "compare_days = 1\n"+levels)
+	}
+	anomalyLevels := func(critical string) string {
+		return `thresholds = [
+    { name = "Page on-call", severity = "critical", value = ` + critical + ` },
+    { name = "Heads up", severity = "warning", value = 2, recovery = 1.5 },
+  ]`
+	}
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		Steps: []resource.TestStep{
+			{
+				// An existing tolerance-only config sends no thresholds.
+				Config: anomaly(`tolerance = 2`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "tolerance", "2"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					lastRequest(`"threshold":0,"tolerance":2`),
+				),
+			},
+			{
+				Config: anomaly(anomalyLevels("3")),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "tolerance", "3"),
+					lastRequest(`"threshold":0,"thresholds":[{"name":"Heads up","recovery":1.5,"severity":"warning","value":2},`+
+						`{"name":"Page on-call","severity":"critical","value":3}],"tolerance":3`),
+					resource.TestCheckResourceAttr(res, "threshold", "0"),
+					resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
+						"name": "Heads up", "severity": "warning", "value": "2", "recovery": "1.5",
+					}),
+					resource.TestCheckResourceAttr("data.axiom_monitor.test", "tolerance", "3"),
+					resource.TestCheckResourceAttr("data.axiom_monitor.test", "thresholds.#", "2"),
+				),
+			},
+			{ResourceName: res, ImportState: true, ImportStateVerify: true},
+			{
+				// tolerance follows the most severe level as it moves.
+				Config: anomaly(anomalyLevels("4.5")),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "tolerance", "4.5"),
+					lastRequest(`"threshold":0,"thresholds":[{"name":"Heads up","recovery":1.5,"severity":"warning","value":2},`+
+						`{"name":"Page on-call","severity":"critical","value":4.5}],"tolerance":4.5`),
+				),
+			},
+			{
+				Config:      anomaly(`tolerance = 3` + "\n" + anomalyLevels("3")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`Attribute "thresholds" cannot be specified when "tolerance" is\s+specified`),
+			},
+			{
+				Config:      configWith("AnomalyDetection", "AboveOrEqual", "compare_days = 1\n"+anomalyLevels("3")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`thresholds on AnomalyDetection monitors need operator Above, Below, got\s+"AboveOrEqual"`),
+			},
+			{
+				// A warning level of 2 must be below the critical level.
+				Config:      anomaly(anomalyLevels("2")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`the warning\s+level has 2 and the critical level 2`),
+			},
+			{
+				Config:      anomaly(anomalyLevels("101")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`"Page\s+on-call"\s+has\s+value\s+101;\s+AnomalyDetection\s+values\s+must\s+be\s+greater\s+than\s+0\s+and\s+at\s+most\s+100`),
+			},
+			{
+				Config: anomaly(`thresholds = [
+    { name = "Heads up", severity = "warning", value = 2, recovery = 2.5 },
+  ]`),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`"Heads\s+up"\s+has\s+recovery\s+2.5;\s+AnomalyDetection\s+recovery\s+must\s+be\s+from\s+0\s+to\s+the\s+level's\s+value\s+2`),
+			},
+			{
+				// Removing thresholds removes the levels with an empty list,
+				// sent with the configured tolerance.
+				Config: anomaly(`tolerance = 2.5`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "tolerance", "2.5"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					lastRequest(`"threshold":0,"thresholds":[],"tolerance":2.5`),
+				),
+			},
+			{Config: anomaly(anomalyLevels("3"))},
+			{
+				// The API needs a tolerance once the levels are gone.
+				Config:      anomaly(``),
+				ExpectError: regexp.MustCompile(`An AnomalyDetection monitor needs tolerance, or thresholds to derive it`),
 			},
 		},
 	})
