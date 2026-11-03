@@ -122,8 +122,9 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 // TestMonitorThresholdLevels runs axiom_monitor against a fake v2 monitors API
 // that follows the threshold levels contract: levels come back sorted from
 // least to most severe, threshold is the most severe level's value, a monitor
-// without levels reads back as one unnamed level, and a request without
-// thresholds on a monitor with more than one level is rejected.
+// without levels reads back as one unnamed level, an empty thresholds list
+// removes the levels, and a request without thresholds on a monitor with more
+// than one level is rejected.
 func TestMonitorThresholdLevels(t *testing.T) {
 	for _, env := range []string{"AXIOM_URL", "AXIOM_TOKEN", "AXIOM_ORG_ID", "AXIOM_EDGE_URL", "AXIOM_EDGE", "AXIOM_API_TOKEN", "AXIOM_BASE_URL"} {
 		t.Setenv(env, "")
@@ -149,7 +150,7 @@ func TestMonitorThresholdLevels(t *testing.T) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		requests = append(requests, body)
+		requests = append(requests, maps.Clone(body))
 		id := r.PathValue("id")
 		if r.Method == http.MethodPost {
 			id = fmt.Sprintf("monitor-%d", len(requests))
@@ -158,7 +159,10 @@ func TestMonitorThresholdLevels(t *testing.T) {
 			return
 		}
 		body["id"] = id
-		if levels, ok := body["thresholds"].([]any); ok {
+		if levels, ok := body["thresholds"].([]any); ok && len(levels) == 0 {
+			// An empty list removes the levels, leaving threshold.
+			delete(body, "thresholds")
+		} else if ok {
 			slices.SortFunc(levels, func(a, b any) int {
 				return slices.Index(severities, a.(map[string]any)["severity"].(string)) -
 					slices.Index(severities, b.(map[string]any)["severity"].(string))
@@ -229,6 +233,22 @@ data "axiom_monitor" "test" {
   ]`
 	}
 	const res = "axiom_monitor.test"
+	// lastRequest checks the threshold fields of the last monitor write.
+	lastRequest := func(want string) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			mu.Lock()
+			defer mu.Unlock()
+			last := requests[len(requests)-1]
+			fields := map[string]any{"threshold": last["threshold"]}
+			if levels, sent := last["thresholds"]; sent {
+				fields["thresholds"] = levels
+			}
+			if got, _ := json.Marshal(fields); string(got) != "{"+want+"}" {
+				return fmt.Errorf("last request sent %s, want {%s}", got, want)
+			}
+			return nil
+		}
+	}
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
@@ -336,37 +356,47 @@ resource "terraform_data" "level" {
 				),
 			},
 			{
+				// Removing thresholds removes the levels with an empty list,
+				// sent with the configured threshold.
 				Config: config(`threshold = 90`),
-				ExpectError: regexp.MustCompile(`This monitor has 2 named threshold levels, so they must be set in\s+thresholds[\s\S]*` +
-					`\{ name = "Heads up", severity = "warning", value = 80 \},`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "threshold", "90"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					resource.TestCheckNoResourceAttr("data.axiom_monitor.test", "thresholds"),
+					lastRequest(`"threshold":90,"thresholds":[]`),
+				),
 			},
 			{
-				Config:      config(``),
-				ExpectError: regexp.MustCompile(`Monitor has threshold levels`),
+				// With levels gone, a threshold-only update sends no thresholds.
+				Config: config(`threshold = 85`),
+				Check:  lastRequest(`"threshold":85`),
+			},
+			{Config: config(twoLevels("95"))},
+			{
+				// With neither attribute set, threshold becomes 0.
+				Config: config(``),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "threshold", "0"),
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					lastRequest(`"threshold":0,"thresholds":[]`),
+				),
 			},
 			{
-				// One named level, as the Console can leave a monitor, still
-				// requires thresholds rather than a threshold-only config.
+				// One named level, as the Console can leave a monitor, is
+				// removed the same way.
 				PreConfig: func() {
 					mu.Lock()
 					defer mu.Unlock()
 					for _, m := range stored {
 						m["threshold"] = 95.0
-						m["thresholds"] = []any{map[string]any{"name": `CPU "p99" ${host} %{x}`, "severity": "critical", "value": 95.0}}
+						m["thresholds"] = []any{map[string]any{"name": "CPU", "severity": "critical", "value": 95.0}}
 					}
 				},
 				Config: config(`threshold = 95`),
-				ExpectError: regexp.MustCompile(`This monitor has 1 named threshold levels[\s\S]*` +
-					regexp.QuoteMeta(`{ name = "CPU \"p99\" $${host} %%{x}", severity = "critical", value = 95 },`)),
-			},
-			{
-				// The level as the error printed it pastes back unchanged.
-				Config: config(`thresholds = [
-  { name = "CPU \"p99\" $${host} %%{x}", severity = "critical", value = 95 },
-]`),
-				Check: resource.TestCheckTypeSetElemNestedAttrs(res, "thresholds.*", map[string]string{
-					"name": `CPU "p99" ${host} %{x}`, "severity": "critical", "value": "95",
-				}),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr(res, "thresholds"),
+					lastRequest(`"threshold":95,"thresholds":[]`),
+				),
 			},
 		},
 	})
