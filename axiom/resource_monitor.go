@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -28,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/axiomhq/axiom-go/axiom"
-	"github.com/zclconf/go-cty/cty"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -206,8 +202,8 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"thresholds": schema.SetNestedAttribute{
 				MarkdownDescription: "Named threshold levels of a Threshold monitor, from 1 to 4. " +
 					"Names and severities must be unique, and values must be ordered in the operator's direction, " +
-					"with the most severe level furthest out. Once a monitor has levels, they must be managed here " +
-					"instead of with `threshold`. More than one level requires the threshold levels feature for the organization",
+					"with the most severe level furthest out. Removing `thresholds` removes the levels " +
+					"and leaves `threshold` (0 unless set) as the monitor's only value. More than one level requires the threshold levels feature for the organization",
 				Optional: true,
 				Validators: []validator.Set{
 					setvalidator.SizeBetween(1, 4),
@@ -403,6 +399,18 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// Removing thresholds from the configuration removes the monitor's named
+	// levels, leaving threshold as its only value. That takes an empty list:
+	// without one, the API rejects the update when there are several levels.
+	var stateThresholds types.Set
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("thresholds"), &stateThresholds)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if plan.Thresholds.IsNull() && len(stateThresholds.Elements()) > 0 {
+		monitor.Thresholds = []axiom.MonitorThreshold{}
+	}
+
 	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{Monitor: *monitor})
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update Monitor", err.Error())
@@ -429,9 +437,8 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 }
 
-// ModifyPlan derives threshold from the most severe level, and requires
-// thresholds once a monitor has levels: the API rejects a threshold-only
-// update of a monitor with more than one level, and cannot remove levels.
+// ModifyPlan derives threshold from the most severe level, or plans 0 when
+// neither threshold nor thresholds is set.
 func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -444,21 +451,6 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if plan.Thresholds.IsNull() {
-		if !req.State.Raw.IsNull() {
-			var stateThresholds types.Set
-			resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("thresholds"), &stateThresholds)...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			if levels := stateThresholds.Elements(); len(levels) > 0 {
-				resp.Diagnostics.AddAttributeError(path.Root("thresholds"), "Monitor has threshold levels",
-					fmt.Sprintf("This monitor has %d named threshold levels, so they must be set in thresholds. "+
-						"The Axiom API cannot replace threshold levels with a single threshold. "+
-						"Add the current levels to the configuration to manage them:\n\n%s",
-						len(levels), thresholdsHCL(levels)))
-				return
-			}
-		}
 		var threshold types.Float64
 		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("threshold"), &threshold)...)
 		if threshold.IsNull() {
@@ -506,29 +498,6 @@ func mostSevereThreshold(thresholds types.Set) types.Float64 {
 		}
 	}
 	return types.Float64Value(result)
-}
-
-// thresholdsHCL formats levels as a thresholds argument to paste into a configuration.
-func thresholdsHCL(levels []attr.Value) string {
-	var b strings.Builder
-	b.WriteString("thresholds = [\n")
-	for _, element := range levels {
-		name, severity, value, recovery, ok := thresholdLevel(element)
-		if !ok {
-			continue
-		}
-		// hclwrite escapes quotes and the ${ and %{ template sequences.
-		fmt.Fprintf(&b, "  { name = %s, severity = %s, value = %s",
-			hclwrite.TokensForValue(cty.StringVal(name.ValueString())).Bytes(),
-			hclwrite.TokensForValue(cty.StringVal(severity.ValueString())).Bytes(),
-			strconv.FormatFloat(value.ValueFloat64(), 'f', -1, 64))
-		if !recovery.IsNull() {
-			fmt.Fprintf(&b, ", recovery = %s", strconv.FormatFloat(recovery.ValueFloat64(), 'f', -1, 64))
-		}
-		b.WriteString(" },\n")
-	}
-	b.WriteString("]")
-	return b.String()
 }
 
 func (r *MonitorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
