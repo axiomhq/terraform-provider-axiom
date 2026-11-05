@@ -53,6 +53,7 @@ description: |-
 Read-Only:
 
 - `name` (String) Level name
+- `notifier_ids` (List of String) Notifiers for this level, which hear about the alert while it is at this level or a more severe one. Unset or empty, the level uses the monitor's `notifier_ids`. Requires the threshold levels feature for the organization
 - `recovery` (Number) The value the query result must cross for the level to resolve. Defaults to `value` and must be on the resolving side of it. On an AnomalyDetection monitor, a tolerance from 0 to `value`
 - `severity` (String) Level severity. One of `critical`, `error`, `warning` or `info`
 - `value` (Number) The value where the level triggers. On an AnomalyDetection monitor, a tolerance in standard deviations
