@@ -40,8 +40,19 @@ description: |-
 - `range_minutes` (Number) Query time range from now
 - `resolvable` (Boolean) Determines whether the events triggered by the monitor are individually resolvable. This has no effect on threshold monitors
 - `skip_resolved` (Boolean) Specifies whether to skip resolved alerts
-- `threshold` (Number) The threshold where the monitor should trigger
+- `threshold` (Number) The threshold where the monitor should trigger. When `thresholds` is set, this is computed as the value of the most severe level
+- `thresholds` (Attributes Set) Named threshold levels of a Threshold monitor, from 1 to 4. Names and severities must be unique, and values must be ordered in the operator's direction, with the most severe level furthest out. Once a monitor has levels, they must be managed here instead of with `threshold`. More than one level requires the threshold levels feature for the organization (see [below for nested schema](#nestedatt--thresholds))
 - `tolerance` (Number) The tolerance percentage for anomaly detection
 - `trigger_after_n_positive_results` (Number) The number of positive results needed before triggering
 - `trigger_from_n_runs` (Number) The number of consecutive check runs that must trigger before triggering an alert
 - `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'
+
+<a id="nestedatt--thresholds"></a>
+### Nested Schema for `thresholds`
+
+Read-Only:
+
+- `name` (String) Level name
+- `recovery` (Number) The value the query result must cross for the level to resolve. Defaults to `value` and must be on the resolving side of it
+- `severity` (String) Level severity. One of `critical`, `error`, `warning` or `info`
+- `value` (Number) The value where the level triggers
