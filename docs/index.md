@@ -138,6 +138,7 @@ resource "axiom_monitor" "test_monitor" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
+  include_chart    = true
 }
 
 resource "axiom_user" "test_user" {

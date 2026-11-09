@@ -210,12 +210,14 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 						alert_on_no_data = false
 						notify_by_group  = true
 						resolvable 		 = true
+						include_chart    = true
 						type = "Threshold"
 					}
 				`,
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "resolvable", "resolvable"),
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "notify_by_group", "notifyByGroup"),
+					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "include_chart", "includeChart"),
 				),
 			},
 		},
