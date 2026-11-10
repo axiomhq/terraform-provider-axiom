@@ -18,18 +18,20 @@ description: |-
 ### Required
 
 - `name` (String) Monitor name
-- `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'
+- `type` (String) The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent', 'NewValues'
 
 ### Optional
 
 - `alert_on_no_data` (Boolean) If the monitor should trigger an alert if there is no data
 - `apl_query` (String) The APL query used inside the monitor (mutually exclusive with mpl_query)
+- `backfill_days` (Number) NewValues monitors only. Before the first run, the values the query returns over this many days are recorded as seen, so they do not alert. Must not exceed lookback_days. 0 disables the backfill
 - `compare_days` (Number) The number of days to compare for anomaly detection
 - `delay` (Number) The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)
 - `description` (String) Monitor description
 - `disabled_until` (String) The time the monitor will be disabled until
 - `interval_minutes` (Number) How often the monitor should run
 - `labels` (Set of String) Set of existing Axiom label IDs assigned to this resource. Omit to leave assignments unchanged; use an empty set to clear all assignments.
+- `lookback_days` (Number) NewValues monitors only, and required for them. A value counts as new when it was not seen in this many days
 - `mpl_query` (String) The MPL query used inside the monitor (mutually exclusive with apl_query)
 - `notifier_ids` (List of String) A list of notifier id's to be used when this monitor triggers
 - `notify_by_group` (Boolean) If the monitor should track non-time groups separately
@@ -40,6 +42,7 @@ description: |-
 - `skip_resolved` (Boolean) Specifies whether to skip resolved alerts
 - `threshold` (Number) The threshold where the monitor should trigger
 - `tolerance` (Number) The tolerance percentage for anomaly detection
+- `tracked_value` (String) NewValues monitors only, and required for them. The column of the query result whose values are checked for new ones
 - `trigger_after_n_positive_results` (Number) The number of positive results needed before triggering
 - `trigger_from_n_runs` (Number) The number of consecutive check runs that must trigger before triggering an alert
 
