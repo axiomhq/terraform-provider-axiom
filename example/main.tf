@@ -83,6 +83,10 @@ resource "axiom_monitor" "test_monitor" {
   ]
   alert_on_no_data = false
   notify_by_group  = false
+  metadata = {
+    team     = "atlas"
+    severity = "high"
+  }
 }
 
 resource "axiom_monitor" "test_monitor_match_event" {

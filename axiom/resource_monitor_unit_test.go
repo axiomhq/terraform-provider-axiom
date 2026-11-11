@@ -3,6 +3,7 @@ package axiom
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 
@@ -104,5 +105,49 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 		state := flattenMonitor(mplOnlyMonitor, nil)
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
+	})
+}
+
+func TestMonitorMetadata(t *testing.T) {
+	t.Parallel()
+
+	plan := func(metadata types.Map) MonitorResourceModel {
+		return MonitorResourceModel{
+			Type:     types.StringValue(axiom.MonitorTypeMatchEvent.String()),
+			APLQuery: types.StringValue("['events']"),
+			Metadata: metadata,
+		}
+	}
+	tests := []struct {
+		name     string
+		metadata types.Map
+		want     map[string]string
+	}{
+		// A nil map is not sent, so the API keeps the stored metadata.
+		{"omitted keeps the stored metadata", types.MapNull(types.StringType), nil},
+		{"unknown keeps the stored metadata", types.MapUnknown(types.StringType), nil},
+		{"empty removes the metadata", types.MapValueMust(types.StringType, map[string]attr.Value{}), map[string]string{}},
+		{"values are sent", types.MapValueMust(types.StringType, map[string]attr.Value{"team": types.StringValue("atlas")}), map[string]string{"team": "atlas"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			monitor, diags := extractMonitorResourceModel(t.Context(), plan(tt.metadata))
+			assert.False(t, diags.HasError(), diags)
+			assert.Equal(t, tt.want, monitor.Metadata)
+			if tt.want != nil {
+				assert.NotNil(t, monitor.Metadata)
+			}
+		})
+	}
+
+	t.Run("a monitor without metadata reads as an empty map", func(t *testing.T) {
+		t.Parallel()
+
+		state := flattenMonitor(&axiom.Monitor{Type: axiom.MonitorTypeMatchEvent}, nil)
+		assert.Equal(t, types.MapValueMust(types.StringType, map[string]attr.Value{}), state.Metadata)
+		state = flattenMonitor(&axiom.Monitor{Type: axiom.MonitorTypeMatchEvent, Metadata: map[string]string{"team": "atlas"}}, nil)
+		assert.Equal(t, types.MapValueMust(types.StringType, map[string]attr.Value{"team": types.StringValue("atlas")}), state.Metadata)
 	})
 }
