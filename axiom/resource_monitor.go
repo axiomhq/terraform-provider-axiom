@@ -340,6 +340,15 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.Append(diags...)
 		return
 	}
+	// Metadata left out of the config keeps the stored values, even when the plan holds stale state.
+	var configMetadata types.Map
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("metadata"), &configMetadata)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if configMetadata.IsNull() {
+		monitor.Metadata = nil
+	}
 
 	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{Monitor: *monitor})
 	if err != nil {
