@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/axiomhq/axiom-go/axiom"
@@ -52,6 +53,9 @@ func (d *MonitorDataSource) Schema(ctx context.Context, _ datasource.SchemaReque
 	labels := labelsAttribute()
 	labels.MarkdownDescription = "Set of Axiom label IDs assigned to this resource."
 	resourceResp.Schema.Attributes["labels"] = labels
+	metadata := resourceResp.Schema.Attributes["metadata"].(schema.MapAttribute)
+	metadata.MarkdownDescription = "Static key-value pairs that notifications carry, such as team or severity."
+	resourceResp.Schema.Attributes["metadata"] = metadata
 	resp.Schema = frameworkDatasourceSchemaFromFrameworkResourceSchema(resourceResp.Schema)
 }
 
