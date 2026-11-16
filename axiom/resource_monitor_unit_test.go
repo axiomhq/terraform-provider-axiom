@@ -2,9 +2,17 @@ package axiom
 
 import (
 	"testing"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/axiomhq/axiom-go/axiom"
 )
@@ -105,4 +113,132 @@ func TestFlattenMonitor_QueryPreference(t *testing.T) {
 		assert.True(t, state.APLQuery.IsNull())
 		assert.Equal(t, "`test-metrics`:`http_request_duration_seconds` | align to 1m using avg", state.MPLQuery.ValueString())
 	})
+}
+
+func TestValidateMonitor_NewValues(t *testing.T) {
+	t.Parallel()
+
+	valid := MonitorResourceModel{
+		Type:         types.StringValue(axiom.MonitorTypeNewValues.String()),
+		APLQuery:     types.StringValue("['events'] | summarize count() by host"),
+		TrackedValue: types.StringValue("host"),
+		LookbackDays: types.Int64Value(14),
+		BackfillDays: types.Int64Value(7),
+	}
+	assert.False(t, validateMonitor(valid).HasError())
+
+	longer := valid
+	longer.IntervalMinutes, longer.RangeMinutes = types.Int64Value(5), types.Int64Value(60)
+	assert.False(t, validateMonitor(longer).HasError(), "a range longer than the interval is valid")
+
+	for name, tc := range map[string]struct {
+		mutate  func(*MonitorResourceModel)
+		summary string
+	}{
+		"requires tracked_value": {func(m *MonitorResourceModel) { m.TrackedValue = types.StringNull() }, "Tracked value is required"},
+		"requires lookback_days": {func(m *MonitorResourceModel) {
+			m.LookbackDays, m.BackfillDays = types.Int64Value(0), types.Int64Value(0)
+		}, "Lookback days is required"},
+		"limits range_minutes to the interval": {func(m *MonitorResourceModel) {
+			m.IntervalMinutes, m.RangeMinutes = types.Int64Value(5), types.Int64Value(1)
+		}, "Invalid range minutes"},
+		"limits backfill_days": {func(m *MonitorResourceModel) { m.BackfillDays = types.Int64Value(15) }, "Invalid backfill days"},
+		"rejects mpl_query": {func(m *MonitorResourceModel) {
+			m.APLQuery = types.StringNull()
+			m.MPLQuery = types.StringValue("`test-metrics`:`http_request_duration_seconds` | align to 1m using avg")
+		}, "APL query is required"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			plan := valid
+			tc.mutate(&plan)
+			diags := validateMonitor(plan)
+			assert.True(t, diags.HasError())
+			assert.Equal(t, tc.summary, diags[0].Summary())
+		})
+	}
+}
+
+func TestFlattenMonitor_NewValues(t *testing.T) {
+	t.Parallel()
+
+	monitor := &axiom.Monitor{
+		ID:           "monitor-id",
+		Name:         "monitor-name",
+		APLQuery:     "['events'] | summarize count() by host",
+		Type:         axiom.MonitorTypeNewValues,
+		Interval:     5 * time.Minute,
+		Range:        5 * time.Minute,
+		TrackedValue: "host",
+		LookbackDays: 14,
+		BackfillDays: 7,
+	}
+
+	t.Run("stores the new values fields", func(t *testing.T) {
+		t.Parallel()
+
+		state := flattenMonitor(monitor, nil)
+		assert.Equal(t, "NewValues", state.Type.ValueString())
+		assert.Equal(t, "host", state.TrackedValue.ValueString())
+		assert.Equal(t, int64(14), state.LookbackDays.ValueInt64())
+		assert.Equal(t, int64(7), state.BackfillDays.ValueInt64())
+		assert.Equal(t, int64(5), state.RangeMinutes.ValueInt64())
+	})
+
+	t.Run("stores the server's range", func(t *testing.T) {
+		t.Parallel()
+
+		state := flattenMonitor(&axiom.Monitor{Type: axiom.MonitorTypeNewValues, Interval: 5 * time.Minute, Range: 60 * time.Minute}, &MonitorResourceModel{RangeMinutes: types.Int64Value(1)})
+		assert.Equal(t, int64(60), state.RangeMinutes.ValueInt64())
+	})
+
+	t.Run("leaves tracked_value null on other monitors", func(t *testing.T) {
+		t.Parallel()
+
+		state := flattenMonitor(&axiom.Monitor{Type: axiom.MonitorTypeThreshold, Range: 5 * time.Minute}, &MonitorResourceModel{RangeMinutes: types.Int64Value(1)})
+		assert.True(t, state.TrackedValue.IsNull())
+		assert.Equal(t, int64(5), state.RangeMinutes.ValueInt64(), "other monitors keep the server's range")
+	})
+}
+
+func TestNewValuesRangeDefault(t *testing.T) {
+	t.Parallel()
+
+	schemaFor := func(t *testing.T) schema.Schema {
+		t.Helper()
+		var resp resource.SchemaResponse
+		NewMonitorResource().Schema(t.Context(), resource.SchemaRequest{}, &resp)
+		return resp.Schema
+	}
+
+	plan := func(t *testing.T, monitorType string, interval int64) tfsdk.Plan {
+		t.Helper()
+		s := schemaFor(t)
+		p := tfsdk.Plan{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(t.Context()), nil)}
+		require.False(t, p.SetAttribute(t.Context(), path.Root("type"), monitorType).HasError())
+		require.False(t, p.SetAttribute(t.Context(), path.Root("interval_minutes"), interval).HasError())
+		return p
+	}
+
+	for name, tc := range map[string]struct {
+		monitorType string
+		config      types.Int64
+		want        int64
+	}{
+		"new values follows the interval":     {axiom.MonitorTypeNewValues.String(), types.Int64Null(), 5},
+		"new values keeps a configured range": {axiom.MonitorTypeNewValues.String(), types.Int64Value(60), 1},
+		"threshold keeps the default":         {axiom.MonitorTypeThreshold.String(), types.Int64Null(), 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			interval := int64(5)
+			req := planmodifier.Int64Request{ConfigValue: tc.config, Plan: plan(t, tc.monitorType, interval), PlanValue: types.Int64Value(1)}
+			resp := &planmodifier.Int64Response{PlanValue: req.PlanValue}
+			newValuesRangeDefault{}.PlanModifyInt64(t.Context(), req, resp)
+			require.False(t, resp.Diagnostics.HasError())
+			assert.Equal(t, tc.want, resp.PlanValue.ValueInt64())
+		})
+	}
 }

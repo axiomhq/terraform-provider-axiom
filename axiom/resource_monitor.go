@@ -63,6 +63,9 @@ type MonitorResourceModel struct {
 	TriggerFromNRuns             types.Int64   `tfsdk:"trigger_from_n_runs"`
 	TriggerAfterNPositiveResults types.Int64   `tfsdk:"trigger_after_n_positive_results"`
 	CompareDays                  types.Int64   `tfsdk:"compare_days"`
+	TrackedValue                 types.String  `tfsdk:"tracked_value"`
+	LookbackDays                 types.Int64   `tfsdk:"lookback_days"`
+	BackfillDays                 types.Int64   `tfsdk:"backfill_days"`
 	Type                         types.String  `tfsdk:"type"`
 	CreatedBy                    types.String  `tfsdk:"created_by"`
 	CreatedAt                    types.String  `tfsdk:"created_at"`
@@ -155,10 +158,11 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"range_minutes": schema.Int64Attribute{
-				MarkdownDescription: "Query time range from now",
+				MarkdownDescription: "Query time range from now. For new values monitors it defaults to `interval_minutes` and must not be less",
 				Optional:            true,
 				Computed:            true,
 				Default:             int64default.StaticInt64(1),
+				PlanModifiers:       []planmodifier.Int64{newValuesRangeDefault{}},
 			},
 			"threshold": schema.Float64Attribute{
 				MarkdownDescription: "The threshold where the monitor should trigger",
@@ -223,14 +227,31 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:            true,
 				Default:             int64default.StaticInt64(0),
 			},
+			"tracked_value": schema.StringAttribute{
+				MarkdownDescription: "NewValues monitors only, and required for them. The column of the query result whose values are checked for new ones",
+				Optional:            true,
+			},
+			"lookback_days": schema.Int64Attribute{
+				MarkdownDescription: "NewValues monitors only, and required for them. A value counts as new when it was not seen in this many days",
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(0),
+			},
+			"backfill_days": schema.Int64Attribute{
+				MarkdownDescription: "NewValues monitors only. Before the first run, the values the query returns over this many days are recorded as seen, so they do not alert. Must not exceed lookback_days. 0 disables the backfill",
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(0),
+			},
 			"type": schema.StringAttribute{
-				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'",
+				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent', 'NewValues'",
 				Required:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOf([]string{
 						"Threshold",
 						"AnomalyDetection",
 						"MatchEvent",
+						"NewValues",
 					}...),
 				},
 			},
@@ -400,10 +421,12 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		monitorType = axiom.MonitorTypeMatchEvent
 	case "AnomalyDetection":
 		monitorType = axiom.MonitorTypeAnomalyDetection
+	case "NewValues":
+		monitorType = axiom.MonitorTypeNewValues
 	default:
 		diags.AddError(
 			"Invalid monitor type",
-			fmt.Sprintf("Monitor type must be one of: Threshold, MatchEvent, AnomalyDetection. Got: %s", plan.Type.ValueString()),
+			fmt.Sprintf("Monitor type must be one of: Threshold, MatchEvent, AnomalyDetection, NewValues. Got: %s", plan.Type.ValueString()),
 		)
 		return nil, diags
 	}
@@ -443,6 +466,9 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		TriggerFromNRuns:             plan.TriggerFromNRuns.ValueInt64(),
 		TriggerAfterNPositiveResults: plan.TriggerAfterNPositiveResults.ValueInt64(),
 		CompareDays:                  plan.CompareDays.ValueInt64(),
+		TrackedValue:                 plan.TrackedValue.ValueString(),
+		LookbackDays:                 plan.LookbackDays.ValueInt64(),
+		BackfillDays:                 plan.BackfillDays.ValueInt64(),
 		Type:                         monitorType,
 	}, nil
 }
@@ -485,6 +511,11 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		aplQuery = types.StringValue(queryValue)
 	}
 
+	var trackedValue types.String
+	if monitor.TrackedValue != "" {
+		trackedValue = types.StringValue(monitor.TrackedValue)
+	}
+
 	return MonitorResourceModel{
 		Labels:                       types.SetNull(types.StringType),
 		ID:                           types.StringValue(monitor.ID),
@@ -508,6 +539,9 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		TriggerFromNRuns:             types.Int64Value(monitor.TriggerFromNRuns),
 		TriggerAfterNPositiveResults: types.Int64Value(monitor.TriggerAfterNPositiveResults),
 		CompareDays:                  types.Int64Value(monitor.CompareDays),
+		TrackedValue:                 trackedValue,
+		LookbackDays:                 types.Int64Value(monitor.LookbackDays),
+		BackfillDays:                 types.Int64Value(monitor.BackfillDays),
 		Type:                         types.StringValue(monitor.Type.String()),
 		CreatedBy:                    types.StringValue(monitor.CreatedBy),
 		CreatedAt:                    types.StringValue(monitor.CreatedAt.Format(time.RFC3339)),
@@ -586,6 +620,66 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 				"Operator is required for monitor type anomaly detection",
 			))
 		}
+	case axiom.MonitorTypeNewValues.String():
+		if hasMPLQuery {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"APL query is required",
+				"Monitor type new values does not support mpl_query",
+			))
+		}
+		if plan.TrackedValue.IsNull() || plan.TrackedValue.ValueString() == "" {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Tracked value is required",
+				"tracked_value is required for monitor type new values",
+			))
+		}
+		if !plan.LookbackDays.IsUnknown() && plan.LookbackDays.ValueInt64() <= 0 {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Lookback days is required",
+				"lookback_days must be at least 1 for monitor type new values",
+			))
+		}
+		if !plan.RangeMinutes.IsUnknown() && !plan.IntervalMinutes.IsUnknown() &&
+			!plan.RangeMinutes.IsNull() && plan.RangeMinutes.ValueInt64() < plan.IntervalMinutes.ValueInt64() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Invalid range minutes",
+				"range_minutes must not be less than interval_minutes for monitor type new values",
+			))
+		}
+		if !plan.BackfillDays.IsUnknown() && !plan.LookbackDays.IsUnknown() &&
+			(plan.BackfillDays.ValueInt64() < 0 || plan.BackfillDays.ValueInt64() > plan.LookbackDays.ValueInt64()) {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Invalid backfill days",
+				"backfill_days must be between 0 and lookback_days for monitor type new values",
+			))
+		}
 	}
 	return diags
+}
+
+// newValuesRangeDefault plans range_minutes as interval_minutes for a new values monitor that does not set it.
+type newValuesRangeDefault struct{}
+
+var _ planmodifier.Int64 = newValuesRangeDefault{}
+
+func (newValuesRangeDefault) Description(context.Context) string {
+	return "Defaults to interval_minutes for new values monitors."
+}
+
+func (m newValuesRangeDefault) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (newValuesRangeDefault) PlanModifyInt64(ctx context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
+	if !req.ConfigValue.IsNull() {
+		return
+	}
+	var monitorType types.String
+	var interval types.Int64
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("type"), &monitorType)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("interval_minutes"), &interval)...)
+	if resp.Diagnostics.HasError() || monitorType.ValueString() != axiom.MonitorTypeNewValues.String() || interval.IsUnknown() || interval.IsNull() {
+		return
+	}
+	resp.PlanValue = interval
 }
