@@ -37,7 +37,7 @@ description: |-
 - `notify_by_group` (Boolean) If the monitor should track non-time groups separately
 - `notify_every_run` (Boolean) Indicates whether to send notifications on every trigger
 - `operator` (String) Operator used in monitor trigger evaluation
-- `range_minutes` (Number) Query time range from now
+- `range_minutes` (Number) Query time range from now. For new values monitors it defaults to `interval_minutes` and must not be less
 - `resolvable` (Boolean) Determines whether the events triggered by the monitor are individually resolvable. This has no effect on threshold monitors
 - `skip_resolved` (Boolean) Specifies whether to skip resolved alerts
 - `threshold` (Number) The threshold where the monitor should trigger

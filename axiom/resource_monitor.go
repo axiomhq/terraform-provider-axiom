@@ -158,10 +158,11 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"range_minutes": schema.Int64Attribute{
-				MarkdownDescription: "Query time range from now",
+				MarkdownDescription: "Query time range from now. For new values monitors it defaults to `interval_minutes` and must not be less",
 				Optional:            true,
 				Computed:            true,
 				Default:             int64default.StaticInt64(1),
+				PlanModifiers:       []planmodifier.Int64{newValuesRangeDefault{}},
 			},
 			"threshold": schema.Float64Attribute{
 				MarkdownDescription: "The threshold where the monitor should trigger",
@@ -515,12 +516,6 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		trackedValue = types.StringValue(monitor.TrackedValue)
 	}
 
-	// The server ignores the range of a NewValues monitor and returns its interval, so the configured range is kept.
-	rangeMinutes := types.Int64Value(int64(monitor.Range.Minutes()))
-	if monitor.Type == axiom.MonitorTypeNewValues && currentState != nil && !currentState.RangeMinutes.IsNull() && !currentState.RangeMinutes.IsUnknown() {
-		rangeMinutes = currentState.RangeMinutes
-	}
-
 	return MonitorResourceModel{
 		Labels:                       types.SetNull(types.StringType),
 		ID:                           types.StringValue(monitor.ID),
@@ -534,7 +529,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		IntervalMinutes:              types.Int64Value(int64(monitor.Interval.Minutes())),
 		NotifierIds:                  flattenStringSlice(monitor.NotifierIDs),
 		Operator:                     types.StringValue(monitor.Operator.String()),
-		RangeMinutes:                 rangeMinutes,
+		RangeMinutes:                 types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:                    types.Float64Value(monitor.Threshold),
 		Resolvable:                   types.BoolValue(monitor.Resolvable),
 		Delay:                        types.Int64Value(int64(monitor.Delay.Seconds())),
@@ -644,6 +639,13 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 				"lookback_days must be at least 1 for monitor type new values",
 			))
 		}
+		if !plan.RangeMinutes.IsUnknown() && !plan.IntervalMinutes.IsUnknown() &&
+			!plan.RangeMinutes.IsNull() && plan.RangeMinutes.ValueInt64() < plan.IntervalMinutes.ValueInt64() {
+			diags = append(diags, diag.NewErrorDiagnostic(
+				"Invalid range minutes",
+				"range_minutes must not be less than interval_minutes for monitor type new values",
+			))
+		}
 		if !plan.BackfillDays.IsUnknown() && !plan.LookbackDays.IsUnknown() &&
 			(plan.BackfillDays.ValueInt64() < 0 || plan.BackfillDays.ValueInt64() > plan.LookbackDays.ValueInt64()) {
 			diags = append(diags, diag.NewErrorDiagnostic(
@@ -653,4 +655,31 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 		}
 	}
 	return diags
+}
+
+// newValuesRangeDefault plans range_minutes as interval_minutes for a new values monitor that does not set it.
+type newValuesRangeDefault struct{}
+
+var _ planmodifier.Int64 = newValuesRangeDefault{}
+
+func (newValuesRangeDefault) Description(context.Context) string {
+	return "Defaults to interval_minutes for new values monitors."
+}
+
+func (m newValuesRangeDefault) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (newValuesRangeDefault) PlanModifyInt64(ctx context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
+	if !req.ConfigValue.IsNull() {
+		return
+	}
+	var monitorType types.String
+	var interval types.Int64
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("type"), &monitorType)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("interval_minutes"), &interval)...)
+	if resp.Diagnostics.HasError() || monitorType.ValueString() != axiom.MonitorTypeNewValues.String() || interval.IsUnknown() || interval.IsNull() {
+		return
+	}
+	resp.PlanValue = interval
 }
