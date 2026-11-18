@@ -34,10 +34,10 @@ func TestAccTokenResource_TokenPersistence(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("axiom_token.test", "name", "test-token-persistence"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.api_tokens.#", "2"),
-					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.#", "1"),
-					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.0", "read"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.views.#", "1"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.views.0", "read"),
+					// labels is left out: the CI token cannot grant it.
+					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.#", "0"),
 					resource.TestCheckResourceAttrSet("axiom_token.test", "token"),
 					// Store the token value for comparison in next step
 					resource.TestCheckResourceAttrWith("axiom_token.test", "token", func(value string) error {
@@ -54,10 +54,10 @@ func TestAccTokenResource_TokenPersistence(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("axiom_token.test", "name", "test-token-persistence"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.api_tokens.#", "2"),
-					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.#", "1"),
-					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.0", "read"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.views.#", "1"),
 					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.views.0", "read"),
+					// labels is left out: the CI token cannot grant it.
+					resource.TestCheckResourceAttr("axiom_token.test", "org_capabilities.labels.#", "0"),
 					resource.TestCheckResourceAttrSet("axiom_token.test", "token"),
 					// Verify token is not empty after refresh
 					resource.TestCheckResourceAttrWith("axiom_token.test", "token", func(value string) error {
@@ -165,7 +165,6 @@ func testAccTokenResourceConfigWithDescription(name, description, rotationGraceP
                 }
                 org_capabilities = {
                         api_tokens = ["create", "read"]
-                        labels     = ["read"]
                         views      = ["read"]
                 }
                 %[3]s
