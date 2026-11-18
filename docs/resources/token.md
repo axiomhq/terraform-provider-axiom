@@ -60,7 +60,6 @@ Optional:
 - `dashboards` (List of String) Ability to manage dashboards
 - `datasets` (List of String) Ability to manage datasets
 - `endpoints` (List of String) Ability to manage endpoints
-- `flows` (List of String) Ability to manage flows
 - `integrations` (List of String) Ability to manage integrations
 - `monitors` (List of String) Ability to manage monitors
 - `notifiers` (List of String) Ability to manage notifiers

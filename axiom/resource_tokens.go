@@ -92,7 +92,6 @@ type OrgCapabilities struct {
 	Dashboards       types.List `tfsdk:"dashboards"`
 	Datasets         types.List `tfsdk:"datasets"`
 	Endpoints        types.List `tfsdk:"endpoints"`
-	Flows            types.List `tfsdk:"flows"`
 	Integrations     types.List `tfsdk:"integrations"`
 	Monitors         types.List `tfsdk:"monitors"`
 	Notifiers        types.List `tfsdk:"notifiers"`
@@ -110,7 +109,6 @@ func (o OrgCapabilities) Types() map[string]attr.Type {
 		"dashboards":         types.ListType{ElemType: types.StringType},
 		"datasets":           types.ListType{ElemType: types.StringType},
 		"endpoints":          types.ListType{ElemType: types.StringType},
-		"flows":              types.ListType{ElemType: types.StringType},
 		"integrations":       types.ListType{ElemType: types.StringType},
 		"monitors":           types.ListType{ElemType: types.StringType},
 		"notifiers":          types.ListType{ElemType: types.StringType},
@@ -340,18 +338,6 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage endpoints",
-						Validators: []validator.List{
-							listvalidator.ValueStringsAre(
-								stringvalidator.OneOf(Create, Read, Update, Delete),
-							),
-						},
-						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
-					},
-					"flows": schema.ListAttribute{
-						Optional:    true,
-						Computed:    true,
-						ElementType: types.StringType,
-						Description: "Ability to manage flows",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -803,7 +789,6 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		orgCapabilities.Dashboards,
 		orgCapabilities.Datasets,
 		orgCapabilities.Endpoints,
-		orgCapabilities.Flows,
 		orgCapabilities.Integrations,
 		orgCapabilities.Monitors,
 		orgCapabilities.Notifiers,
@@ -822,7 +807,6 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		Dashboards:       flattenAxiomActionSlice(orgCapabilities.Dashboards),
 		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
 		Endpoints:        flattenAxiomActionSlice(orgCapabilities.Endpoints),
-		Flows:            flattenAxiomActionSlice(orgCapabilities.Flows),
 		Integrations:     flattenAxiomActionSlice(orgCapabilities.Integrations),
 		Monitors:         flattenAxiomActionSlice(orgCapabilities.Monitors),
 		Notifiers:        flattenAxiomActionSlice(orgCapabilities.Notifiers),
@@ -982,12 +966,6 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 		return nil, diags
 	}
 	orgCapabilities.Endpoints = values
-
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Flows.Elements())
-	if diags.HasError() {
-		return nil, diags
-	}
-	orgCapabilities.Flows = values
 
 	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Integrations.Elements())
 	if diags.HasError() {
