@@ -84,13 +84,14 @@ var ephemeralTokenOrgCapabilities = []tokenCapability{
 	{"dashboards", "Ability to manage dashboards", []string{Create, Read, Update, Delete}},
 	{"datasets", "Ability to manage datasets", []string{Create, Read, Update, Delete}},
 	{"endpoints", "Ability to manage endpoints", []string{Create, Read, Update, Delete}},
-	{"flows", "Ability to manage flows", []string{Create, Read, Update, Delete}},
-	{"integrations", "Ability to manage integrations", []string{Create, Read, Update, Delete}},
+	{"integrations", "Ability to manage integrations, which the Axiom console calls apps", []string{Create, Read, Update, Delete}},
+	{"labels", "Ability to manage labels", []string{Create, Read, Update, Delete}},
 	{"monitors", "Ability to manage monitors", []string{Create, Read, Update, Delete}},
 	{"notifiers", "Ability to manage notifiers", []string{Create, Read, Update, Delete}},
-	{"rbac", "Ability to manage roles and groups", []string{Create, Read, Update, Delete}},
+	{"rbac", "Ability to manage roles and groups, which the Axiom console calls access control", []string{Create, Read, Update, Delete}},
 	{"shared_access_keys", "Ability to manage shared access keys", []string{Read, Update}},
 	{"users", "Ability to manage users", []string{Create, Read, Update, Delete}},
+	{"views", "Ability to manage views", []string{Create, Read, Update, Delete}},
 }
 
 func ephemeralTokenCapabilityAttributes(capabilities []tokenCapability) map[string]schema.Attribute {
