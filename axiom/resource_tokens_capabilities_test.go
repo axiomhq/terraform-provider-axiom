@@ -20,6 +20,13 @@ import (
 // are sent to and read back from the API, using a server that stores the
 // request body as is.
 func TestTokenResource_orgCapabilities(t *testing.T) {
+	// axiom-go lets these variables override the provider configuration,
+	// which would send requests to a real deployment instead of the server
+	// below.
+	for _, env := range []string{"AXIOM_URL", "AXIOM_TOKEN", "AXIOM_ORG_ID", "AXIOM_EDGE_URL", "AXIOM_EDGE", "AXIOM_API_TOKEN", "AXIOM_BASE_URL"} {
+		t.Setenv(env, "")
+	}
+
 	var (
 		mu     sync.Mutex
 		stored map[string]any
