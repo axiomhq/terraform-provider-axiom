@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -33,7 +34,8 @@ func providerUserAgent() string {
 
 // Ensure the implementation satisfies the expected interfaces
 var (
-	_ provider.Provider = &axiomProvider{}
+	_ provider.Provider                       = &axiomProvider{}
+	_ provider.ProviderWithEphemeralResources = &axiomProvider{}
 )
 
 // AxiomProviderModel describes the provider data model.
@@ -120,6 +122,7 @@ func (p *axiomProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
+	resp.EphemeralResourceData = client
 }
 
 // DataSources defines the data sources implemented in the provider.
@@ -136,6 +139,13 @@ func (p *axiomProvider) DataSources(_ context.Context) []func() datasource.DataS
 	}
 }
 
+// EphemeralResources defines the ephemeral resources implemented in the provider.
+func (p *axiomProvider) EphemeralResources(_ context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		NewTokenEphemeralResource,
+	}
+}
+
 // Resources defines the resources implemented in the provider.
 func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
@@ -149,6 +159,7 @@ func (p *axiomProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewRoleResource,
 		NewGroupResource,
 		NewTokenResource,
+		NewTokenStatelessResource,
 		NewViewResource,
 		NewVirtualFieldResource,
 	}
