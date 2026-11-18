@@ -65,7 +65,7 @@ func (d *TokenDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	apiToken, err := d.client.Tokens.Get(ctx, plan.ID.ValueString())
+	apiToken, err := getToken(ctx, d.client, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to read apiToken", err.Error())
 		tflog.Error(ctx, err.Error())

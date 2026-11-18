@@ -93,11 +93,13 @@ type OrgCapabilities struct {
 	Datasets         types.List `tfsdk:"datasets"`
 	Endpoints        types.List `tfsdk:"endpoints"`
 	Integrations     types.List `tfsdk:"integrations"`
+	Labels           types.List `tfsdk:"labels"`
 	Monitors         types.List `tfsdk:"monitors"`
 	Notifiers        types.List `tfsdk:"notifiers"`
 	Rbac             types.List `tfsdk:"rbac"`
 	SharedAccessKeys types.List `tfsdk:"shared_access_keys"`
 	Users            types.List `tfsdk:"users"`
+	Views            types.List `tfsdk:"views"`
 }
 
 func (o OrgCapabilities) Types() map[string]attr.Type {
@@ -110,11 +112,13 @@ func (o OrgCapabilities) Types() map[string]attr.Type {
 		"datasets":           types.ListType{ElemType: types.StringType},
 		"endpoints":          types.ListType{ElemType: types.StringType},
 		"integrations":       types.ListType{ElemType: types.StringType},
+		"labels":             types.ListType{ElemType: types.StringType},
 		"monitors":           types.ListType{ElemType: types.StringType},
 		"notifiers":          types.ListType{ElemType: types.StringType},
 		"rbac":               types.ListType{ElemType: types.StringType},
 		"shared_access_keys": types.ListType{ElemType: types.StringType},
 		"users":              types.ListType{ElemType: types.StringType},
+		"views":              types.ListType{ElemType: types.StringType},
 	}
 }
 
@@ -349,7 +353,19 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
-						Description: "Ability to manage integrations",
+						Description: "Ability to manage integrations, which the Axiom console calls apps",
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(
+								stringvalidator.OneOf(Create, Read, Update, Delete),
+							),
+						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+					},
+					"labels": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						ElementType: types.StringType,
+						Description: "Ability to manage labels",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -385,7 +401,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
-						Description: "Ability to manage roles and groups",
+						Description: "Ability to manage roles and groups, which the Axiom console calls access control",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -410,6 +426,18 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage users",
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(
+								stringvalidator.OneOf(Create, Read, Update, Delete),
+							),
+						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+					},
+					"views": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						ElementType: types.StringType,
+						Description: "Ability to manage views",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -502,7 +530,7 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	token, err := r.client.Tokens.Create(ctx, tokenReq)
+	token, err := createToken(ctx, r.client, tokenReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create token, got error: %s", err))
 		return
@@ -527,7 +555,7 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	apiToken, err := r.client.Tokens.Get(ctx, plan.ID.ValueString())
+	apiToken, err := getToken(ctx, r.client, plan.ID.ValueString())
 	if err != nil {
 		if isNotFoundError(err) {
 			resp.Diagnostics.AddWarning(
@@ -582,7 +610,7 @@ func (r *TokenResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	rotatedToken, err := r.client.Tokens.Regenerate(ctx, state.ID.ValueString(), axiom.RegenerateTokenRequest{
+	rotatedToken, err := regenerateToken(ctx, r.client, state.ID.ValueString(), regenerateTokenRequest{
 		ExistingTokenExpiresAt: time.Now().UTC().Add(gracePeriod),
 		NewToken:               &newTokenReq,
 	})
@@ -624,33 +652,35 @@ func (r *TokenResource) UpgradeState(ctx context.Context) map[int64]resource.Sta
 	return v0PassthroughUpgraders(ctx, r)
 }
 
-func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (axiom.CreateTokenRequest, diag.Diagnostics) {
+func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (createTokenRequest, diag.Diagnostics) {
 	datasetCapabilities, diags := extractDatasetCapabilities(ctx, plan)
 	if diags.HasError() {
-		return axiom.CreateTokenRequest{}, diags
+		return createTokenRequest{}, diags
 	}
 
 	orgCapabilities, diags := extractOrgCapabilities(ctx, plan.OrgCapabilities)
 	if diags.HasError() {
-		return axiom.CreateTokenRequest{}, diags
+		return createTokenRequest{}, diags
 	}
 
 	tokenExpiry, err := parseTokenExpiry(plan.ExpiresAt)
 	if err != nil {
 		diags.AddError("Client Error", fmt.Sprintf("Unable to parse token expiry time, got error: %s", err))
-		return axiom.CreateTokenRequest{}, diags
+		return createTokenRequest{}, diags
 	}
 
 	if err := validateDatasetCapabilities(datasetCapabilities); err != nil {
 		diags.AddError("Client Error", err.Error())
-		return axiom.CreateTokenRequest{}, diags
+		return createTokenRequest{}, diags
 	}
 
-	return axiom.CreateTokenRequest{
-		Name:                     plan.Name.ValueString(),
-		Description:              plan.Description.ValueString(),
-		ExpiresAt:                tokenExpiry,
-		DatasetCapabilities:      datasetCapabilities,
+	return createTokenRequest{
+		CreateTokenRequest: axiom.CreateTokenRequest{
+			Name:                plan.Name.ValueString(),
+			Description:         plan.Description.ValueString(),
+			ExpiresAt:           tokenExpiry,
+			DatasetCapabilities: datasetCapabilities,
+		},
 		OrganisationCapabilities: *orgCapabilities,
 	}, diags
 }
@@ -720,7 +750,7 @@ func extractRotationGracePeriod(config TokensResourceModel) (time.Duration, diag
 	return gracePeriod, diags
 }
 
-func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
+func flattenToken(ctx context.Context, token *apiToken) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(ctx, token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
@@ -750,7 +780,7 @@ func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceMod
 	return t, nil
 }
 
-func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenResponse) (TokensResourceModel, diag.Diagnostics) {
+func flattenCreateTokenResponse(ctx context.Context, token *createTokenResponse) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(context.Background(), token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
@@ -780,7 +810,7 @@ func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenRes
 	return t, nil
 }
 
-func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.OrganisationCapabilities) (types.Object, diag.Diagnostics) {
+func flattenOrgCapabilities(ctx context.Context, orgCapabilities tokenOrgCapabilities) (types.Object, diag.Diagnostics) {
 	if allEmpty(
 		orgCapabilities.Annotations,
 		orgCapabilities.APITokens,
@@ -790,11 +820,13 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		orgCapabilities.Datasets,
 		orgCapabilities.Endpoints,
 		orgCapabilities.Integrations,
+		orgCapabilities.Labels,
 		orgCapabilities.Monitors,
 		orgCapabilities.Notifiers,
 		orgCapabilities.RBAC,
 		orgCapabilities.SharedAccessKeys,
 		orgCapabilities.Users,
+		orgCapabilities.Views,
 	) {
 		return types.ObjectNull(OrgCapabilities{}.Types()), nil
 	}
@@ -808,11 +840,13 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
 		Endpoints:        flattenAxiomActionSlice(orgCapabilities.Endpoints),
 		Integrations:     flattenAxiomActionSlice(orgCapabilities.Integrations),
+		Labels:           flattenAxiomActionSlice(orgCapabilities.Labels),
 		Monitors:         flattenAxiomActionSlice(orgCapabilities.Monitors),
 		Notifiers:        flattenAxiomActionSlice(orgCapabilities.Notifiers),
 		Rbac:             flattenAxiomActionSlice(orgCapabilities.RBAC),
 		SharedAccessKeys: flattenAxiomActionSlice(orgCapabilities.SharedAccessKeys),
 		Users:            flattenAxiomActionSlice(orgCapabilities.Users),
+		Views:            flattenAxiomActionSlice(orgCapabilities.Views),
 	})
 }
 
@@ -913,8 +947,8 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 	return datasetCapabilities, nil
 }
 
-func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.OrganisationCapabilities, diag.Diagnostics) {
-	orgCapabilities := &axiom.OrganisationCapabilities{}
+func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*tokenOrgCapabilities, diag.Diagnostics) {
+	orgCapabilities := &tokenOrgCapabilities{}
 	if orgCap.IsNull() || orgCap.IsUnknown() {
 		return orgCapabilities, nil
 	}
@@ -1002,6 +1036,18 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 		return nil, diags
 	}
 	orgCapabilities.Users = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Labels.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.Labels = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Views.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.Views = values
 
 	return orgCapabilities, nil
 }

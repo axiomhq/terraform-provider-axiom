@@ -155,6 +155,8 @@ func testAccTokenResourceConfigWithDescription(name, description, rotationGraceP
                 }
                 org_capabilities = {
                         api_tokens = ["create", "read"]
+                        labels     = ["read"]
+                        views      = ["read"]
                 }
                 %[3]s
                 }
