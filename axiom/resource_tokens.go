@@ -530,7 +530,7 @@ func (r *TokenResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	token, err := createToken(ctx, r.client, tokenReq)
+	token, err := r.client.Tokens.Create(ctx, tokenReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create token, got error: %s", err))
 		return
@@ -555,7 +555,7 @@ func (r *TokenResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	apiToken, err := getToken(ctx, r.client, plan.ID.ValueString())
+	apiToken, err := r.client.Tokens.Get(ctx, plan.ID.ValueString())
 	if err != nil {
 		if isNotFoundError(err) {
 			resp.Diagnostics.AddWarning(
@@ -610,7 +610,7 @@ func (r *TokenResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	rotatedToken, err := regenerateToken(ctx, r.client, state.ID.ValueString(), regenerateTokenRequest{
+	rotatedToken, err := r.client.Tokens.Regenerate(ctx, state.ID.ValueString(), axiom.RegenerateTokenRequest{
 		ExistingTokenExpiresAt: time.Now().UTC().Add(gracePeriod),
 		NewToken:               &newTokenReq,
 	})
@@ -652,35 +652,33 @@ func (r *TokenResource) UpgradeState(ctx context.Context) map[int64]resource.Sta
 	return v0PassthroughUpgraders(ctx, r)
 }
 
-func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (createTokenRequest, diag.Diagnostics) {
+func buildCreateTokenRequest(ctx context.Context, plan TokensResourceModel) (axiom.CreateTokenRequest, diag.Diagnostics) {
 	datasetCapabilities, diags := extractDatasetCapabilities(ctx, plan)
 	if diags.HasError() {
-		return createTokenRequest{}, diags
+		return axiom.CreateTokenRequest{}, diags
 	}
 
 	orgCapabilities, diags := extractOrgCapabilities(ctx, plan.OrgCapabilities)
 	if diags.HasError() {
-		return createTokenRequest{}, diags
+		return axiom.CreateTokenRequest{}, diags
 	}
 
 	tokenExpiry, err := parseTokenExpiry(plan.ExpiresAt)
 	if err != nil {
 		diags.AddError("Client Error", fmt.Sprintf("Unable to parse token expiry time, got error: %s", err))
-		return createTokenRequest{}, diags
+		return axiom.CreateTokenRequest{}, diags
 	}
 
 	if err := validateDatasetCapabilities(datasetCapabilities); err != nil {
 		diags.AddError("Client Error", err.Error())
-		return createTokenRequest{}, diags
+		return axiom.CreateTokenRequest{}, diags
 	}
 
-	return createTokenRequest{
-		CreateTokenRequest: axiom.CreateTokenRequest{
-			Name:                plan.Name.ValueString(),
-			Description:         plan.Description.ValueString(),
-			ExpiresAt:           tokenExpiry,
-			DatasetCapabilities: datasetCapabilities,
-		},
+	return axiom.CreateTokenRequest{
+		Name:                     plan.Name.ValueString(),
+		Description:              plan.Description.ValueString(),
+		ExpiresAt:                tokenExpiry,
+		DatasetCapabilities:      datasetCapabilities,
 		OrganisationCapabilities: *orgCapabilities,
 	}, diags
 }
@@ -750,7 +748,7 @@ func extractRotationGracePeriod(config TokensResourceModel) (time.Duration, diag
 	return gracePeriod, diags
 }
 
-func flattenToken(ctx context.Context, token *apiToken) (TokensResourceModel, diag.Diagnostics) {
+func flattenToken(ctx context.Context, token *axiom.APIToken) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(ctx, token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
@@ -780,7 +778,7 @@ func flattenToken(ctx context.Context, token *apiToken) (TokensResourceModel, di
 	return t, nil
 }
 
-func flattenCreateTokenResponse(ctx context.Context, token *createTokenResponse) (TokensResourceModel, diag.Diagnostics) {
+func flattenCreateTokenResponse(ctx context.Context, token *axiom.CreateTokenResponse) (TokensResourceModel, diag.Diagnostics) {
 	dsCapabilities, diags := flattenDatasetCapabilities(context.Background(), token.DatasetCapabilities)
 	if diags.HasError() {
 		return TokensResourceModel{}, diags
@@ -810,7 +808,7 @@ func flattenCreateTokenResponse(ctx context.Context, token *createTokenResponse)
 	return t, nil
 }
 
-func flattenOrgCapabilities(ctx context.Context, orgCapabilities tokenOrgCapabilities) (types.Object, diag.Diagnostics) {
+func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.OrganisationCapabilities) (types.Object, diag.Diagnostics) {
 	if allEmpty(
 		orgCapabilities.Annotations,
 		orgCapabilities.APITokens,
@@ -947,8 +945,8 @@ func extractDatasetCapabilities(ctx context.Context, plan TokensResourceModel) (
 	return datasetCapabilities, nil
 }
 
-func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*tokenOrgCapabilities, diag.Diagnostics) {
-	orgCapabilities := &tokenOrgCapabilities{}
+func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.OrganisationCapabilities, diag.Diagnostics) {
+	orgCapabilities := &axiom.OrganisationCapabilities{}
 	if orgCap.IsNull() || orgCap.IsUnknown() {
 		return orgCapabilities, nil
 	}
