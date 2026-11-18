@@ -92,13 +92,14 @@ type OrgCapabilities struct {
 	Dashboards       types.List `tfsdk:"dashboards"`
 	Datasets         types.List `tfsdk:"datasets"`
 	Endpoints        types.List `tfsdk:"endpoints"`
-	Flows            types.List `tfsdk:"flows"`
 	Integrations     types.List `tfsdk:"integrations"`
+	Labels           types.List `tfsdk:"labels"`
 	Monitors         types.List `tfsdk:"monitors"`
 	Notifiers        types.List `tfsdk:"notifiers"`
 	Rbac             types.List `tfsdk:"rbac"`
 	SharedAccessKeys types.List `tfsdk:"shared_access_keys"`
 	Users            types.List `tfsdk:"users"`
+	Views            types.List `tfsdk:"views"`
 }
 
 func (o OrgCapabilities) Types() map[string]attr.Type {
@@ -110,13 +111,14 @@ func (o OrgCapabilities) Types() map[string]attr.Type {
 		"dashboards":         types.ListType{ElemType: types.StringType},
 		"datasets":           types.ListType{ElemType: types.StringType},
 		"endpoints":          types.ListType{ElemType: types.StringType},
-		"flows":              types.ListType{ElemType: types.StringType},
 		"integrations":       types.ListType{ElemType: types.StringType},
+		"labels":             types.ListType{ElemType: types.StringType},
 		"monitors":           types.ListType{ElemType: types.StringType},
 		"notifiers":          types.ListType{ElemType: types.StringType},
 		"rbac":               types.ListType{ElemType: types.StringType},
 		"shared_access_keys": types.ListType{ElemType: types.StringType},
 		"users":              types.ListType{ElemType: types.StringType},
+		"views":              types.ListType{ElemType: types.StringType},
 	}
 }
 
@@ -347,11 +349,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
-					"flows": schema.ListAttribute{
+					"integrations": schema.ListAttribute{
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
-						Description: "Ability to manage flows",
+						Description: "Ability to manage integrations, which the Axiom console calls apps",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -359,11 +361,11 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
-					"integrations": schema.ListAttribute{
+					"labels": schema.ListAttribute{
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
-						Description: "Ability to manage integrations",
+						Description: "Ability to manage labels",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -399,7 +401,7 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
-						Description: "Ability to manage roles and groups",
+						Description: "Ability to manage roles and groups, which the Axiom console calls access control",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -424,6 +426,18 @@ func (r *TokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Ability to manage users",
+						Validators: []validator.List{
+							listvalidator.ValueStringsAre(
+								stringvalidator.OneOf(Create, Read, Update, Delete),
+							),
+						},
+						Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+					},
+					"views": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						ElementType: types.StringType,
+						Description: "Ability to manage views",
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(Create, Read, Update, Delete),
@@ -803,13 +817,14 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		orgCapabilities.Dashboards,
 		orgCapabilities.Datasets,
 		orgCapabilities.Endpoints,
-		orgCapabilities.Flows,
 		orgCapabilities.Integrations,
+		orgCapabilities.Labels,
 		orgCapabilities.Monitors,
 		orgCapabilities.Notifiers,
 		orgCapabilities.RBAC,
 		orgCapabilities.SharedAccessKeys,
 		orgCapabilities.Users,
+		orgCapabilities.Views,
 	) {
 		return types.ObjectNull(OrgCapabilities{}.Types()), nil
 	}
@@ -822,13 +837,14 @@ func flattenOrgCapabilities(ctx context.Context, orgCapabilities axiom.Organisat
 		Dashboards:       flattenAxiomActionSlice(orgCapabilities.Dashboards),
 		Datasets:         flattenAxiomActionSlice(orgCapabilities.Datasets),
 		Endpoints:        flattenAxiomActionSlice(orgCapabilities.Endpoints),
-		Flows:            flattenAxiomActionSlice(orgCapabilities.Flows),
 		Integrations:     flattenAxiomActionSlice(orgCapabilities.Integrations),
+		Labels:           flattenAxiomActionSlice(orgCapabilities.Labels),
 		Monitors:         flattenAxiomActionSlice(orgCapabilities.Monitors),
 		Notifiers:        flattenAxiomActionSlice(orgCapabilities.Notifiers),
 		Rbac:             flattenAxiomActionSlice(orgCapabilities.RBAC),
 		SharedAccessKeys: flattenAxiomActionSlice(orgCapabilities.SharedAccessKeys),
 		Users:            flattenAxiomActionSlice(orgCapabilities.Users),
+		Views:            flattenAxiomActionSlice(orgCapabilities.Views),
 	})
 }
 
@@ -983,12 +999,6 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 	}
 	orgCapabilities.Endpoints = values
 
-	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Flows.Elements())
-	if diags.HasError() {
-		return nil, diags
-	}
-	orgCapabilities.Flows = values
-
 	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Integrations.Elements())
 	if diags.HasError() {
 		return nil, diags
@@ -1024,6 +1034,18 @@ func extractOrgCapabilities(ctx context.Context, orgCap types.Object) (*axiom.Or
 		return nil, diags
 	}
 	orgCapabilities.Users = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Labels.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.Labels = values
+
+	values, diags = typeAxiomActionSliceToStringSlice(ctx, planCapabilties.Views.Elements())
+	if diags.HasError() {
+		return nil, diags
+	}
+	orgCapabilities.Views = values
 
 	return orgCapabilities, nil
 }

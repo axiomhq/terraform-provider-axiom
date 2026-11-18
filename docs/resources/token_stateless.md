@@ -93,13 +93,14 @@ Optional:
 - `dashboards` (List of String) Ability to manage dashboards
 - `datasets` (List of String) Ability to manage datasets
 - `endpoints` (List of String) Ability to manage endpoints
-- `flows` (List of String) Ability to manage flows
-- `integrations` (List of String) Ability to manage integrations
+- `integrations` (List of String) Ability to manage integrations, which the Axiom console calls apps
+- `labels` (List of String) Ability to manage labels
 - `monitors` (List of String) Ability to manage monitors
 - `notifiers` (List of String) Ability to manage notifiers
-- `rbac` (List of String) Ability to manage roles and groups
+- `rbac` (List of String) Ability to manage roles and groups, which the Axiom console calls access control
 - `shared_access_keys` (List of String) Ability to manage shared access keys
 - `users` (List of String) Ability to manage users
+- `views` (List of String) Ability to manage views
 
 ## Import
 
