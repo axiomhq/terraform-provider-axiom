@@ -39,7 +39,7 @@ description: |-
 - `resolvable` (Boolean) Determines whether the events triggered by the monitor are individually resolvable. This has no effect on threshold monitors
 - `skip_resolved` (Boolean) Specifies whether to skip resolved alerts
 - `threshold` (Number) The threshold where the monitor should trigger. When `thresholds` is set, this is computed as the value of the most severe level
-- `thresholds` (Attributes Set) Named threshold levels of a Threshold monitor, from 1 to 4. Names and severities must be unique, and values must be ordered in the operator's direction, with the most severe level furthest out. Once a monitor has levels, they must be managed here instead of with `threshold`. More than one level requires the threshold levels feature for the organization (see [below for nested schema](#nestedatt--thresholds))
+- `thresholds` (Attributes Set) Named threshold levels of a Threshold monitor, from 1 to 4. Names and severities must be unique, and values must be ordered in the operator's direction, with the most severe level furthest out. Removing `thresholds` removes the levels and leaves `threshold` (0 unless set) as the monitor's only value. More than one level requires the threshold levels feature for the organization (see [below for nested schema](#nestedatt--thresholds))
 - `tolerance` (Number) The tolerance percentage for anomaly detection
 - `trigger_after_n_positive_results` (Number) The number of positive results needed before triggering
 - `trigger_from_n_runs` (Number) The number of consecutive check runs that must trigger before triggering an alert
