@@ -176,14 +176,8 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 	client, err := ax.NewClient()
 	assert.NoError(t, err)
 
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
-			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
-		},
-		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
-		Steps: []resource.TestStep{
-			{
-				Config: `
+	config := func(includeChart string) string {
+		return `
 					provider "axiom" {
 						api_token = "` + os.Getenv("AXIOM_TOKEN") + `"
 						base_url  = "` + os.Getenv("AXIOM_URL") + `"
@@ -210,14 +204,41 @@ func TestAccAxiomResources_resolvable(t *testing.T) {
 						alert_on_no_data = false
 						notify_by_group  = true
 						resolvable 		 = true
-						include_chart    = true
+						` + includeChart + `
 						type = "Threshold"
 					}
-				`,
+				`
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"axiom": providerserver.NewProtocol6WithError(NewAxiomProvider()),
+		},
+		CheckDestroy: testAccCheckAxiomResourcesDestroyed(client),
+		Steps: []resource.TestStep{
+			{
+				Config: config("include_chart = true"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "resolvable", "resolvable"),
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "notify_by_group", "notifyByGroup"),
 					testAccCheckResourcesCreatesCorrectValues(client, "axiom_monitor.new_monitor", "include_chart", "includeChart"),
+				),
+			},
+			{
+				// Leaving include_chart out turns the chart off again.
+				Config: config(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("axiom_monitor.new_monitor", "include_chart", "false"),
+					func(s *terraform.State) error {
+						monitor, err := client.Monitors.Get(context.Background(), s.RootModule().Resources["axiom_monitor.new_monitor"].Primary.ID)
+						if err != nil {
+							return err
+						}
+						if monitor.IncludeChart {
+							return fmt.Errorf("includeChart is still true in Axiom")
+						}
+						return nil
+					},
 				),
 			},
 		},
