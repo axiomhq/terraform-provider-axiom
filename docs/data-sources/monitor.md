@@ -29,6 +29,7 @@ description: |-
 - `delay` (Number) The delay in seconds before the monitor runs (useful for situations where data is batched/delayed)
 - `description` (String) Monitor description
 - `disabled_until` (String) The time the monitor will be disabled until
+- `include_chart` (Boolean) Whether to include a query chart in triggered notifications. This only has an effect on threshold monitors
 - `interval_minutes` (Number) How often the monitor should run
 - `labels` (Set of String) Set of Axiom label IDs assigned to this resource.
 - `mpl_query` (String) The MPL query used inside the monitor (mutually exclusive with apl_query)
