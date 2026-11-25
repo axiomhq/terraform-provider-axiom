@@ -44,17 +44,19 @@ var monitorSeverities = []string{
 }
 
 var monitorThresholdObjectType = types.ObjectType{AttrTypes: map[string]attr.Type{
-	"name":     types.StringType,
-	"severity": types.StringType,
-	"value":    types.Float64Type,
-	"recovery": types.Float64Type,
+	"name":         types.StringType,
+	"severity":     types.StringType,
+	"value":        types.Float64Type,
+	"recovery":     types.Float64Type,
+	"notifier_ids": types.ListType{ElemType: types.StringType},
 }}
 
 type monitorThresholdModel struct {
-	Name     types.String  `tfsdk:"name"`
-	Severity types.String  `tfsdk:"severity"`
-	Value    types.Float64 `tfsdk:"value"`
-	Recovery types.Float64 `tfsdk:"recovery"`
+	Name        types.String  `tfsdk:"name"`
+	Severity    types.String  `tfsdk:"severity"`
+	Value       types.Float64 `tfsdk:"value"`
+	Recovery    types.Float64 `tfsdk:"recovery"`
+	NotifierIDs types.List    `tfsdk:"notifier_ids"`
 }
 
 func NewMonitorResource() resource.Resource {
@@ -235,6 +237,13 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 								"Defaults to `value` and must be on the resolving side of it. On an AnomalyDetection monitor, " +
 								"a tolerance from 0 to `value`",
 							Optional: true,
+						},
+						"notifier_ids": schema.ListAttribute{
+							MarkdownDescription: "Notifiers for this level, which hear about the alert while it is at this level " +
+								"or a more severe one. Unset or empty, the level uses the monitor's `notifier_ids`. " +
+								"Requires the threshold levels feature for the organization",
+							ElementType: types.StringType,
+							Optional:    true,
 						},
 					},
 				},
@@ -567,11 +576,16 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 			return nil, diags
 		}
 		for _, l := range levels {
+			var notifierIDs []string
+			if diags = l.NotifierIDs.ElementsAs(ctx, &notifierIDs, false); diags.HasError() {
+				return nil, diags
+			}
 			thresholds = append(thresholds, axiom.MonitorThreshold{
-				Name:     l.Name.ValueString(),
-				Severity: axiom.MonitorSeverity(l.Severity.ValueString()),
-				Value:    l.Value.ValueFloat64(),
-				Recovery: l.Recovery.ValueFloat64Pointer(),
+				Name:        l.Name.ValueString(),
+				Severity:    axiom.MonitorSeverity(l.Severity.ValueString()),
+				Value:       l.Value.ValueFloat64(),
+				Recovery:    l.Recovery.ValueFloat64Pointer(),
+				NotifierIDs: notifierIDs,
 			})
 		}
 	}
@@ -658,17 +672,37 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 // flattenThresholds returns the monitor's named levels. A monitor without
 // levels reads back as one unnamed level holding threshold, which stays null
 // so that configurations using only threshold have no diff.
-func flattenThresholds(levels []axiom.MonitorThreshold) types.Set {
+//
+// The API leaves out a level's empty notifier list, so a level whose prior
+// notifier_ids was empty keeps it empty rather than reading back as null.
+func flattenThresholds(levels []axiom.MonitorThreshold, prior types.Set) types.Set {
 	if len(levels) == 0 || levels[0].Name == "" {
 		return types.SetNull(monitorThresholdObjectType)
 	}
+	emptyNotifiers := map[string]bool{}
+	for _, element := range prior.Elements() {
+		if obj, ok := element.(types.Object); ok && !obj.IsNull() && !obj.IsUnknown() {
+			name, _ := obj.Attributes()["name"].(types.String)
+			ids, _ := obj.Attributes()["notifier_ids"].(types.List)
+			emptyNotifiers[name.ValueString()] = !ids.IsNull() && !ids.IsUnknown() && len(ids.Elements()) == 0
+		}
+	}
 	elements := make([]attr.Value, 0, len(levels))
 	for _, l := range levels {
+		notifierIDs := types.ListNull(types.StringType)
+		if len(l.NotifierIDs) > 0 || emptyNotifiers[l.Name] {
+			ids := make([]attr.Value, 0, len(l.NotifierIDs))
+			for _, id := range l.NotifierIDs {
+				ids = append(ids, types.StringValue(id))
+			}
+			notifierIDs = types.ListValueMust(types.StringType, ids)
+		}
 		elements = append(elements, types.ObjectValueMust(monitorThresholdObjectType.AttrTypes, map[string]attr.Value{
-			"name":     types.StringValue(l.Name),
-			"severity": types.StringValue(string(l.Severity)),
-			"value":    types.Float64Value(l.Value),
-			"recovery": types.Float64PointerValue(l.Recovery),
+			"name":         types.StringValue(l.Name),
+			"severity":     types.StringValue(string(l.Severity)),
+			"value":        types.Float64Value(l.Value),
+			"recovery":     types.Float64PointerValue(l.Recovery),
+			"notifier_ids": notifierIDs,
 		}))
 	}
 	return types.SetValueMust(monitorThresholdObjectType, elements)
@@ -679,6 +713,10 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 	var description types.String
 	var aplQuery types.String
 	var mplQuery types.String
+	priorThresholds := types.SetNull(monitorThresholdObjectType)
+	if currentState != nil {
+		priorThresholds = currentState.Thresholds
+	}
 
 	if !monitor.DisabledUntil.IsZero() {
 		disabledUntil = types.StringValue(monitor.DisabledUntil.Format(time.RFC3339))
@@ -727,7 +765,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		Operator:                     types.StringValue(monitor.Operator.String()),
 		RangeMinutes:                 types.Int64Value(int64(monitor.Range.Minutes())),
 		Threshold:                    types.Float64Value(monitor.Threshold),
-		Thresholds:                   flattenThresholds(monitor.Thresholds),
+		Thresholds:                   flattenThresholds(monitor.Thresholds, priorThresholds),
 		Resolvable:                   types.BoolValue(monitor.Resolvable),
 		Delay:                        types.Int64Value(int64(monitor.Delay.Seconds())),
 		NotifyEveryRun:               types.BoolValue(monitor.NotifyEveryRun),
