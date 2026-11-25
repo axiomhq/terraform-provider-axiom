@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
@@ -16,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -190,7 +190,7 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"threshold": schema.Float64Attribute{
 				MarkdownDescription: "The threshold where the monitor should trigger. " +
-					"When `thresholds` is set, this is computed as the value of the most severe level",
+					"When `thresholds` is set on a Threshold monitor, this is computed as the value of the most severe level",
 				Optional: true,
 				// Computed without a default: a default of 0 would differ from
 				// the derived value before ModifyPlan sets it, and plan an update.
@@ -200,10 +200,12 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"thresholds": schema.SetNestedAttribute{
-				MarkdownDescription: "Named threshold levels of a Threshold monitor, from 1 to 4. " +
-					"Names and severities must be unique, and values must be ordered in the operator's direction, " +
-					"with the most severe level furthest out. Removing `thresholds` removes the levels " +
-					"and leaves `threshold` (0 unless set) as the monitor's only value. More than one level requires the threshold levels feature for the organization",
+				MarkdownDescription: "Named threshold levels of a Threshold or AnomalyDetection monitor, from 1 to 4. " +
+					"Names and severities must be unique. On a Threshold monitor, values must be ordered in the operator's direction, " +
+					"with the most severe level furthest out. On an AnomalyDetection monitor, values are tolerances in standard deviations, " +
+					"greater than 0 and at most 100, that increase with severity, and the operator must be Above or Below. " +
+					"Removing `thresholds` removes the levels and leaves `threshold` (0 unless set) as the monitor's only value, " +
+					"or `tolerance` on an AnomalyDetection monitor, which must then be set. More than one level requires the threshold levels feature for the organization",
 				Optional: true,
 				Validators: []validator.Set{
 					setvalidator.SizeBetween(1, 4),
@@ -225,12 +227,13 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							},
 						},
 						"value": schema.Float64Attribute{
-							MarkdownDescription: "The value where the level triggers",
+							MarkdownDescription: "The value where the level triggers. On an AnomalyDetection monitor, a tolerance in standard deviations",
 							Required:            true,
 						},
 						"recovery": schema.Float64Attribute{
 							MarkdownDescription: "The value the query result must cross for the level to resolve. " +
-								"Defaults to `value` and must be on the resolving side of it",
+								"Defaults to `value` and must be on the resolving side of it. On an AnomalyDetection monitor, " +
+								"a tolerance from 0 to `value`",
 							Optional: true,
 						},
 					},
@@ -270,10 +273,14 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:            true,
 			},
 			"tolerance": schema.Float64Attribute{
-				MarkdownDescription: "The tolerance percentage for anomaly detection",
-				Optional:            true,
-				Computed:            true,
-				Default:             float64default.StaticFloat64(0),
+				MarkdownDescription: "The tolerance for anomaly detection, in standard deviations. " +
+					"When `thresholds` is set on an AnomalyDetection monitor, this is computed as the value of the most severe level",
+				Optional: true,
+				// Computed without a default, like threshold.
+				Computed: true,
+				Validators: []validator.Float64{
+					float64validator.ConflictsWith(path.MatchRoot("thresholds")),
+				},
 			},
 			"trigger_from_n_runs": schema.Int64Attribute{
 				MarkdownDescription: "The number of consecutive check runs that must trigger before triggering an alert",
@@ -437,8 +444,10 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 }
 
-// ModifyPlan derives threshold from the most severe level, or plans 0 when
-// neither threshold nor thresholds is set.
+// ModifyPlan derives the monitor's level value from its most severe level:
+// threshold on Threshold monitors and tolerance on AnomalyDetection monitors.
+// Otherwise threshold and tolerance are 0 unless set, except that an
+// AnomalyDetection monitor needs tolerance.
 func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -450,20 +459,57 @@ func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if plan.Thresholds.IsNull() {
-		var threshold types.Float64
-		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("threshold"), &threshold)...)
-		if threshold.IsNull() {
-			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("threshold"), types.Float64Value(0))...)
+	// The API rejects a type change of a monitor with levels, since a level's
+	// value means something else on another type. Removing thresholds in the
+	// same change clears the levels first, which the API allows.
+	if !req.State.Raw.IsNull() && !plan.Thresholds.IsNull() {
+		var state MonitorResourceModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
-		return
+		if len(state.Thresholds.Elements()) > 0 && !plan.Type.IsUnknown() && plan.Type.ValueString() != state.Type.ValueString() {
+			resp.Diagnostics.AddAttributeError(path.Root("type"), "Cannot change the type of a monitor with threshold levels",
+				fmt.Sprintf("This %s monitor has threshold levels, whose values mean something else on a %s monitor. "+
+					"Remove thresholds in the same change, which clears the levels, and set threshold or tolerance instead.",
+					state.Type.ValueString(), plan.Type.ValueString()))
+			return
+		}
 	}
 
-	resp.Diagnostics.Append(validateThresholds(plan)...)
-	if resp.Diagnostics.HasError() {
-		return
+	derived := map[string]types.Float64{}
+	if !plan.Thresholds.IsNull() {
+		resp.Diagnostics.Append(validateThresholds(plan)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		switch {
+		case plan.Type.IsUnknown():
+			derived["threshold"], derived["tolerance"] = types.Float64Unknown(), types.Float64Unknown()
+		case plan.Type.ValueString() == axiom.MonitorTypeAnomalyDetection.String():
+			derived["tolerance"] = mostSevereThreshold(plan.Thresholds)
+		default:
+			derived["threshold"] = mostSevereThreshold(plan.Thresholds)
+		}
 	}
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("threshold"), mostSevereThreshold(plan.Thresholds))...)
+	for _, name := range []string{"threshold", "tolerance"} {
+		value, ok := derived[name]
+		if !ok {
+			var configured types.Float64
+			resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(name), &configured)...)
+			if !configured.IsNull() {
+				continue
+			}
+			if name == "tolerance" && plan.Type.ValueString() == axiom.MonitorTypeAnomalyDetection.String() {
+				// The API rejects an anomaly monitor without a tolerance.
+				resp.Diagnostics.AddAttributeError(path.Root("tolerance"), "Tolerance is required",
+					"An AnomalyDetection monitor needs tolerance, or thresholds to derive it from.")
+				return
+			}
+			value = types.Float64Value(0)
+		}
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(name), value)...)
+	}
 }
 
 // thresholdLevel returns the attributes of one thresholds element, or false
@@ -774,32 +820,44 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 	return diags
 }
 
-// validateThresholds checks the thresholds rules the plan can know, leaving
-// value ordering and recovery to the API. Unknown values are skipped.
+// validateThresholds checks the thresholds rules the plan can know. On
+// Threshold monitors it leaves value ordering and recovery to the API, since
+// they depend on the operator. Unknown values are skipped.
 func validateThresholds(plan MonitorResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if plan.Thresholds.IsNull() {
 		return diags
 	}
 
-	if !plan.Type.IsUnknown() && plan.Type.ValueString() != axiom.MonitorTypeThreshold.String() {
-		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
-			fmt.Sprintf("thresholds are only supported on Threshold monitors, not %s.", plan.Type.ValueString()))
+	anomaly := plan.Type.ValueString() == axiom.MonitorTypeAnomalyDetection.String()
+	operators := []string{axiom.Above.String(), axiom.AboveOrEqual.String(), axiom.Below.String(), axiom.BelowOrEqual.String()}
+	if anomaly {
+		operators = []string{axiom.Above.String(), axiom.Below.String()}
 	}
-	switch plan.Operator.ValueString() {
-	case axiom.Above.String(), axiom.AboveOrEqual.String(), axiom.Below.String(), axiom.BelowOrEqual.String():
-	default:
-		if !plan.Operator.IsUnknown() {
-			diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
-				fmt.Sprintf("thresholds need operator Above, AboveOrEqual, Below or BelowOrEqual, got %q.", plan.Operator.ValueString()))
-		}
+	switch {
+	case plan.Type.IsUnknown():
+	case plan.Type.ValueString() != axiom.MonitorTypeThreshold.String() && !anomaly:
+		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+			fmt.Sprintf("thresholds are only supported on Threshold and AnomalyDetection monitors, not %s.", plan.Type.ValueString()))
+	case !plan.Operator.IsUnknown() && !slices.Contains(operators, plan.Operator.ValueString()):
+		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+			fmt.Sprintf("thresholds on %s monitors need operator %s, got %q.",
+				plan.Type.ValueString(), strings.Join(operators, ", "), plan.Operator.ValueString()))
 	}
 
 	names, severities := map[string]bool{}, map[string]bool{}
+	// tolerances holds anomaly level values by severity, least severe first.
+	tolerances := make([]types.Float64, len(monitorSeverities))
 	for _, element := range plan.Thresholds.Elements() {
-		name, severity, _, _, ok := thresholdLevel(element)
+		name, severity, value, recovery, ok := thresholdLevel(element)
 		if !ok {
 			continue
+		}
+		if anomaly {
+			diags.Append(validateAnomalyLevel(name, value, recovery)...)
+			if i := slices.Index(monitorSeverities, severity.ValueString()); i >= 0 && !value.IsUnknown() {
+				tolerances[i] = value
+			}
 		}
 		if !name.IsUnknown() {
 			if names[name.ValueString()] {
@@ -815,6 +873,35 @@ func validateThresholds(plan MonitorResourceModel) diag.Diagnostics {
 			}
 			severities[severity.ValueString()] = true
 		}
+	}
+	previous := -1
+	for i, value := range tolerances {
+		if value.IsNull() {
+			continue
+		}
+		if previous >= 0 && value.ValueFloat64() <= tolerances[previous].ValueFloat64() {
+			diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+				fmt.Sprintf("AnomalyDetection level values must increase with severity, but the %s level has %v and the %s level %v.",
+					monitorSeverities[previous], tolerances[previous].ValueFloat64(), monitorSeverities[i], value.ValueFloat64()))
+		}
+		previous = i
+	}
+	return diags
+}
+
+// validateAnomalyLevel checks that an anomaly level's tolerances are in range.
+func validateAnomalyLevel(name types.String, value, recovery types.Float64) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if !value.IsUnknown() && (value.ValueFloat64() <= 0 || value.ValueFloat64() > 100) {
+		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+			fmt.Sprintf("Threshold level %s has value %v; AnomalyDetection values must be greater than 0 and at most 100.",
+				name, value.ValueFloat64()))
+	}
+	if !recovery.IsNull() && !recovery.IsUnknown() && !value.IsUnknown() &&
+		(recovery.ValueFloat64() < 0 || recovery.ValueFloat64() > value.ValueFloat64()) {
+		diags.AddAttributeError(path.Root("thresholds"), "Invalid thresholds",
+			fmt.Sprintf("Threshold level %s has recovery %v; AnomalyDetection recovery must be from 0 to the level's value %v.",
+				name, recovery.ValueFloat64(), value.ValueFloat64()))
 	}
 	return diags
 }
