@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -63,6 +65,7 @@ type MonitorResourceModel struct {
 	TriggerFromNRuns             types.Int64   `tfsdk:"trigger_from_n_runs"`
 	TriggerAfterNPositiveResults types.Int64   `tfsdk:"trigger_after_n_positive_results"`
 	CompareDays                  types.Int64   `tfsdk:"compare_days"`
+	Metadata                     types.Map     `tfsdk:"metadata"`
 	Type                         types.String  `tfsdk:"type"`
 	CreatedBy                    types.String  `tfsdk:"created_by"`
 	CreatedAt                    types.String  `tfsdk:"created_at"`
@@ -223,6 +226,15 @@ func (r *MonitorResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:            true,
 				Default:             int64default.StaticInt64(0),
 			},
+			"metadata": schema.MapAttribute{
+				MarkdownDescription: "Static key-value pairs that notifications carry, such as team or severity. Custom webhook and message templates read them with `{{index .Metadata \"team\"}}`, and incident.io alerts include them. At most 20 keys of 1 to 64 letters, digits, `_`, `.` or `-`, with values of at most 1024 bytes. Omit to leave the monitor's metadata unchanged; use an empty map to remove it.",
+				Optional:            true,
+				Computed:            true,
+				ElementType:         types.StringType,
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The type of the monitor. Possible values include: 'Threshold', 'AnomalyDetection', 'MatchEvent'",
 				Required:            true,
@@ -328,6 +340,15 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.Append(diags...)
 		return
 	}
+	// Metadata left out of the config keeps the stored values, even when the plan holds stale state.
+	var configMetadata types.Map
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("metadata"), &configMetadata)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if configMetadata.IsNull() {
+		monitor.Metadata = nil
+	}
 
 	monitor, err := r.client.Monitors.Update(ctx, plan.ID.ValueString(), axiom.MonitorUpdateRequest{Monitor: *monitor})
 	if err != nil {
@@ -422,6 +443,16 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		mplQuery = plan.MPLQuery.ValueString()
 	}
 
+	// A nil map is not sent, so the API keeps the stored metadata.
+	var metadata map[string]string
+	if !plan.Metadata.IsNull() && !plan.Metadata.IsUnknown() {
+		metadata = map[string]string{}
+		diags.Append(plan.Metadata.ElementsAs(ctx, &metadata, false)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+	}
+
 	return &axiom.Monitor{
 		Name:                         plan.Name.ValueString(),
 		AlertOnNoData:                plan.AlertOnNoData.ValueBool(),
@@ -444,6 +475,7 @@ func extractMonitorResourceModel(ctx context.Context, plan MonitorResourceModel)
 		TriggerAfterNPositiveResults: plan.TriggerAfterNPositiveResults.ValueInt64(),
 		CompareDays:                  plan.CompareDays.ValueInt64(),
 		Type:                         monitorType,
+		Metadata:                     metadata,
 	}, nil
 }
 
@@ -508,6 +540,7 @@ func flattenMonitor(monitor *axiom.Monitor, currentState *MonitorResourceModel) 
 		TriggerFromNRuns:             types.Int64Value(monitor.TriggerFromNRuns),
 		TriggerAfterNPositiveResults: types.Int64Value(monitor.TriggerAfterNPositiveResults),
 		CompareDays:                  types.Int64Value(monitor.CompareDays),
+		Metadata:                     flattenStringMap(monitor.Metadata),
 		Type:                         types.StringValue(monitor.Type.String()),
 		CreatedBy:                    types.StringValue(monitor.CreatedBy),
 		CreatedAt:                    types.StringValue(monitor.CreatedAt.Format(time.RFC3339)),
@@ -588,4 +621,13 @@ func validateMonitor(plan MonitorResourceModel) diag.Diagnostics {
 		}
 	}
 	return diags
+}
+
+// flattenStringMap returns an empty map rather than null, so a configured empty map matches the state.
+func flattenStringMap(values map[string]string) types.Map {
+	elements := make(map[string]attr.Value, len(values))
+	for k, v := range values {
+		elements[k] = types.StringValue(v)
+	}
+	return types.MapValueMust(types.StringType, elements)
 }
